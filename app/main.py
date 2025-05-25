@@ -1,16 +1,37 @@
-# This is a sample Python script.
+import os
+import sys
+import site
+import logging
+import asyncio
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+# from pydantic import BaseModel
+# from typing import List
+# from app.services.news_crawler import NewsCrawler
+# from app.services.summarizer import NewsSummarizer
+# from app.services.email_sender import EmailSender
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="Tech News Summary Notifier",
+    description="반도체 뉴스 크롤링, 요약 및 이메일 발송 API",
+    version="1.0.0"
+)
+
+# 서비스 인스턴스 초기화
+# news_crawler = NewsCrawler("https://www.etnews.com/news/industry/semiconductor") # 실제 URL로 변경
+# news_summarizer = NewsSummarizer()
+# email_sender = EmailSender()
+
+@app.get("/")
+async def health_check():
+    return "Tech News Summary MCP (FASTAPI) Good!!"
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
