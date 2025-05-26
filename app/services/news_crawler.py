@@ -1,12 +1,11 @@
+import logging
 import os
 import sys
-import site
-import logging
+from datetime import datetime, timedelta
+from typing import List, Dict
 
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict
-from datetime import datetime, timedelta
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir)
@@ -34,15 +33,15 @@ class NewsCrawler:
         }
         logger.info(f"NewsCrawler initialized for base URL: {self.base_url}")
 
-    def _parse_date(self, date_str: str) -> datetime:
+    def _parse_date(self, datetime_str: str) -> datetime:
         """
         날짜 문자열을 datetime 객체로 파싱합니다.
-        ZDNet 날짜 형식: YYYY.MM.DD (예: 2024.05.24)
+        ZDNet 날짜 형식: YYYY.MM.DD AM HH:MM  (예: 2025.05.23 AM 11:22)
         """
         try:
-            return datetime.strptime(date_str.strip(), '%Y.%m.%d')
+            return datetime.strptime(datetime_str, "%Y.%m.%d %p %I:%M")
         except ValueError as e:
-            logger.error(f"Failed to parse date string '{date_str}': {e}")
+            logger.error(f"Failed to parse date string '{datetime_str}': {e}")
             return datetime.min  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
 
     def fetch_articles(self) -> List[Dict[str, str]]:
@@ -54,53 +53,55 @@ class NewsCrawler:
         seven_days_ago = datetime.now() - timedelta(days=7)
         logger.info(f"Fetching articles from {self.base_url} published after {seven_days_ago.strftime('%Y.%m.%d')}")
 
-        try:
-            response = requests.get(self.base_url, headers=self.headers, timeout=10)
-            response.raise_for_status()  # HTTP 오류가 발생하면 예외 발생
-            soup = BeautifulSoup(response.text, 'html.parser')
 
-            # ZDNet 뉴스 목록 컨테이너 (예시 CSS 선택자, 실제 웹사이트 검사 필요)
-            news_posts = soup.find_all('div', class_='newsPost')
+        response = requests.get(self.base_url, headers=self.headers, timeout=10)
+        response.raise_for_status()  # HTTP 오류가 발생하면 예외 발생
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-            if not news_posts:
-                logger.warning(f"No news items found with selector '.news_list_area li' on {self.base_url}")
-                return news_list
+        # ZDNet 뉴스 목록 컨테이너 (예시 CSS 선택자, 실제 웹사이트 검사 필요)
+        news_posts = soup.find_all('div', class_='newsPost')
 
-            for item in news_posts:
-                link_tag = item.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그
-                date_tag = item.find("p", class_="byline")  # 기사 날짜를 포함하는 태그 (예시: <span class="date">)
+        if not news_posts:
+            logger.warning(f"No news items found with selector '.news_list_area li' on {self.base_url}")
+            return news_list
 
-                if link_tag and 'href' in link_tag.attrs and date_tag:
-                    title = link_tag.text.strip()
-                    article_url = link_tag['href']
-                    published_date_str = date_tag.text.strip()
+        for post in news_posts:
 
-                    # 상대 경로 URL을 절대 경로로 변환
-                    if not article_url.startswith('http'):
-                        # base_url이 'https://zdnet.co.kr/news/?lstcode=0050' 이면
-                        # 'https://zdnet.co.kr' 부분만 추출하여 합칩니다.
-                        base_domain = self.base_url.split('/news')[0]
-                        article_url = base_domain + article_url
+            article_link = post.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그
+            title_tag = post.find("div", class_="assetText").find('h3')
+            title = title_tag.get_text(strip=True) if title_tag else None
+            date_tag = post.find("p", class_="byline")
+            span_tag = date_tag.find("span") if date_tag else None
+            article_datetime = span_tag.get_text(strip=True) if span_tag else None
 
-                    published_date = self._parse_date(published_date_str)
+            logger.info("=========================")
+            logger.info(f'title: {title}')
+            logger.info(f'link: {article_link}')
+            logger.info(f'article_datetime: {article_datetime}')
 
-                    # 최근 7일 이내의 뉴스만 포함
-                    if published_date >= seven_days_ago:
-                        news_list.append({
-                            "title": title,
-                            "url": article_url,
-                            "published_date": published_date.strftime('%Y.%m.%d'),
-                            "content": ""  # 내용은 fetch_article_content에서 채움
-                        })
-                    else:
-                        logger.debug(f"Skipping old article: {title} ({published_date_str})")
-                else:
-                    logger.debug(f"Skipping malformed news item: {item.prettify()}")
+            if title is None or article_datetime is None:
+                logger.debug(f"news item: {post.prettify()}")
+                logger.warning("skip article post...")
+                continue
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching article list from {self.base_url}: {e}")
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during article list fetching: {e}")
+            # 상대 경로 URL을 절대 경로로 변환
+            # base_url이 'https://zdnet.co.kr/news/?lstcode=0050' 이면
+            # 'https://zdnet.co.kr' 부분만 추출하여 합칩니다.
+            base_domain = self.base_url.split('/news')[0]
+            article_url = base_domain + article_link
+            published_datetime = self._parse_date(article_datetime)
+
+            # 최근 7일 이내의 뉴스만 포함
+            if published_datetime >= seven_days_ago:
+                news_list.append({
+                    "title": title,
+                    "url": article_url,
+                    "published_date": published_datetime.strftime('%Y-%m-%d'),
+                    "content": ""  # 내용은 fetch_article_content에서 채움
+                })
+            else:
+                logger.debug(f"Skipping old article: {title} ({published_datetime})")
+
         return news_list
 
     def fetch_article_content(self, article_url: str) -> str:
@@ -149,19 +150,19 @@ if __name__ == "__main__":
     logger.info(f"--- Fetching recent articles from {ZDNET_URL} ---")
     articles = crawler.fetch_articles()
 
-    if articles:
-        logger.info(f"Found {len(articles)} recent articles.")
-        for i, article in enumerate(articles):
-            logger.info(f"\n--- Article {i + 1} ---")
-            logger.info(f"Title: {article['title']}")
-            logger.info(f"URL: {article['url']}")
-            logger.info(f"Published Date: {article['published_date']}")
-
-            # 모든 기사 내용을 가져오면 시간이 오래 걸릴 수 있으므로, 몇 개만 가져오기
-            if i < 2:  # 예시로 첫 2개 기사만 내용 가져오기
-                content = crawler.fetch_article_content(article['url'])
-                logger.info(f"Content Snippet (first 200 chars): {content[:200]}...")
-            else:
-                logger.info("Skipping content fetch for remaining articles for brevity.")
-    else:
-        logger.warning("No recent articles found or an error occurred.")
+    # if articles:
+    #     logger.info(f"Found {len(articles)} recent articles.")
+    #     for i, article in enumerate(articles):
+    #         logger.info(f"\n--- Article {i + 1} ---")
+    #         logger.info(f"Title: {article['title']}")
+    #         logger.info(f"URL: {article['url']}")
+    #         logger.info(f"Published Date: {article['published_date']}")
+    #
+    #         # 모든 기사 내용을 가져오면 시간이 오래 걸릴 수 있으므로, 몇 개만 가져오기
+    #         if i < 2:  # 예시로 첫 2개 기사만 내용 가져오기
+    #             content = crawler.fetch_article_content(article['url'])
+    #             logger.info(f"Content Snippet (first 200 chars): {content[:200]}...")
+    #         else:
+    #             logger.info("Skipping content fetch for remaining articles for brevity.")
+    # else:
+    #     logger.warning("No recent articles found or an error occurred.")
