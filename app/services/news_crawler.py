@@ -110,36 +110,66 @@ class NewsCrawler:
         ZDNet Korea의 HTML 구조에 맞춰져 있습니다.
         """
         logger.info(f"Fetching content for article: {article_url}")
-        try:
-            response = requests.get(article_url, headers=self.headers, timeout=10)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+        
+        response = requests.get(article_url, headers=self.headers, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-            # 기사 내용이 담긴 div/p 태그를 찾습니다. 실제 선택자로 변경 필요
-            # ZDNet은 보통 'article_view_content' 같은 클래스를 사용합니다.
-            content_div = soup.select_one('#article_view_content')  # 실제 선택자로 변경 필요
+        # 기사 내용이 담긴 div/p 태그를 찾습니다. 실제 선택자로 변경 필요
+        # ZDNet은 보통 'article_view_content' 같은 클래스를 사용합니다.
+        content_div = soup.select_one('#articleBody')  # 실제 선택자로 변경 필요
 
-            if content_div:
-                # 불필요한 태그 제거 (예: 광고, 이미지 캡션, 기자 정보 등)
-                for script_or_style in content_div(
-                        ["script", "style", "figure", "figcaption", "span.writer", "div.ad_area"]):
-                    script_or_style.extract()
+        if content_div:
+            # 불필요한 태그 제거 (예: 광고, 이미지 캡션, 기자 정보 등)
+            for script_or_style in content_div(
+                    ["script", "style", "figure", "figcaption", "span.writer", "div.ad_area"]):
+                script_or_style.extract()
+                
+            # 관련 기사 내용 제거
+            # 1. h2 태그 중 "관련기사" 텍스트를 포함한 요소와 그 이후 내용 제거
+            h2_tags = content_div.find_all('h2')
+            for h2 in h2_tags:
+                h2_text = h2.get_text(strip=True)
+                if '관련기사' in h2_text or '관련 기사' in h2_text:
+                    # h2 태그와 그 이후의 모든 형제 요소들을 제거
+                    current = h2
+                    while current:
+                        next_sibling = current.next_sibling
+                        current.extract()
+                        current = next_sibling
+                    break
 
-                paragraphs = content_div.find_all(['p', 'div', 'h1', 'h2', 'h3', 'li'])  # 텍스트 추출할 태그 지정
-                content = "\n".join(
-                    [p.get_text(separator=' ', strip=True) for p in paragraphs if p.get_text(strip=True)])
-                logger.info(f"Successfully fetched content for {article_url}")
-                return content.strip()
-            else:
-                logger.warning(
-                    f"Could not find article content with selector '#article_view_content' for {article_url}")
-                return "기사 내용을 찾을 수 없습니다."
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching article content from {article_url}: {e}")
-            return f"기사 내용을 가져오는 데 실패했습니다: {e}"
-        except Exception as e:
-            logger.error(f"An unexpected error occurred while parsing {article_url}: {e}")
-            return f"기사 내용을 파싱하는 데 실패했습니다: {e}"
+            # 2. div class="news_box connect" 요소 제거
+            related_news_divs = content_div.find_all('div', class_=['news_box', 'connect'])
+            for div in related_news_divs:
+                div.extract()
+
+            # 3. div class="news_box connect" (클래스가 함께 있는 경우) 제거
+            related_news_combined = content_div.find_all('div', class_='news_box connect')
+            for div in related_news_combined:
+                div.extract()
+
+            # 4. 추가적인 관련 기사 섹션 제거 (다양한 패턴 대응)
+            # "관련기사", "추천기사", "인기기사" 등의 텍스트를 포함한 div 제거
+            related_keywords = ['관련기사', '관련 기사', '추천기사', '추천 기사', '인기기사', '인기 기사', '더보기']
+            all_divs = content_div.find_all('div')
+            for div in all_divs:
+                div_text = div.get_text(strip=True)
+                if any(keyword in div_text for keyword in related_keywords):
+                    # 해당 div가 관련 기사 섹션인지 확인 (짧은 텍스트이거나 링크가 많은 경우)
+                    if len(div_text) < 100 or len(div.find_all('a')) > 2:
+                        div.extract()
+
+            paragraphs = content_div.find_all(['p', 'div', 'h1', 'h2', 'h3', 'li'])  # 텍스트 추출할 태그 지정
+            content = "\n".join(
+                [p.get_text(separator=' ', strip=True) for p in paragraphs if p.get_text(strip=True)])
+            logger.info(f"Successfully fetched content for {article_url}")
+            return content.strip()
+        else:
+            logger.warning(
+                f"Could not find article content with selector '#article_view_content' for {article_url}")
+            return "기사 내용을 찾을 수 없습니다."
+        
 
 
 # 로컬 테스트를 위한 예시 코드 (실제 네트워크 요청 발생)
