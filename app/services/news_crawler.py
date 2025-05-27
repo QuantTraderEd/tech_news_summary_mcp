@@ -180,19 +180,19 @@ if __name__ == "__main__":
     logger.info(f"--- Fetching recent articles from {ZDNET_URL} ---")
     articles = crawler.fetch_articles()
 
-    # if articles:
-    #     logger.info(f"Found {len(articles)} recent articles.")
-    #     for i, article in enumerate(articles):
-    #         logger.info(f"\n--- Article {i + 1} ---")
-    #         logger.info(f"Title: {article['title']}")
-    #         logger.info(f"URL: {article['url']}")
-    #         logger.info(f"Published Date: {article['published_date']}")
-    #
-    #         # 모든 기사 내용을 가져오면 시간이 오래 걸릴 수 있으므로, 몇 개만 가져오기
-    #         if i < 2:  # 예시로 첫 2개 기사만 내용 가져오기
-    #             content = crawler.fetch_article_content(article['url'])
-    #             logger.info(f"Content Snippet (first 200 chars): {content[:200]}...")
-    #         else:
-    #             logger.info("Skipping content fetch for remaining articles for brevity.")
-    # else:
-    #     logger.warning("No recent articles found or an error occurred.")
+    if articles:
+        logger.info(f"Found {len(articles)} recent articles.")
+        for i, article in enumerate(articles):
+            logger.info(f"\n--- Article {i + 1} ---")
+            logger.info(f"Title: {article['title']}")
+            logger.info(f"URL: {article['url']}")
+            logger.info(f"Published Date: {article['published_date']}")
+    
+            # 모든 기사 내용을 가져오면 시간이 오래 걸릴 수 있으므로, 몇 개만 가져오기
+            if i < 10:  # 예시로 첫 2개 기사만 내용 가져오기
+                content = crawler.fetch_article_content(article['url'])
+                logger.info(f"Content Snippet (first 200 chars): {content[:200]}...")
+            else:
+                logger.info("Skipping content fetch for remaining articles for brevity.")
+    else:
+        logger.warning("No recent articles found or an error occurred.")
