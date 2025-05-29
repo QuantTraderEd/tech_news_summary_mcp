@@ -47,15 +47,11 @@ class ThelecNewsCrawler:
             
         text_to_check = []
         if article_element:
-            text_to_check.append(article_element.get_text())
-            # 부모 요소의 텍스트도 확인하여 섹션 정보가 상위에 있을 경우를 대비
-            if article_element.parent:
-                text_to_check.append(article_element.parent.get_text())
-            # 형제 요소의 텍스트도 확인 (섹션 태그가 기사 옆에 있을 수 있음)
-            if article_element.find_previous_sibling():
-                text_to_check.append(article_element.find_previous_sibling().get_text())
-            if article_element.find_next_sibling():
-                text_to_check.append(article_element.find_next_sibling().get_text())
+            section_tag = article_element.find('small', class_="list-section")
+            if not section_tag:
+                logger.warning(f"The article element is missing section tag: {article_element.get_text()}") 
+                return False
+            text_to_check.append(section_tag.get_text())
         
         section_keywords = {
             "반도체": ["반도체", "semiconductor", "S1N2"],
