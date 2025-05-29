@@ -2,6 +2,7 @@
 fastapi==0.111.0
 uvicorn==0.30.1
 requests==2.32.3
+fake_useragent==2.2.0
 beautifulsoup4==4.12.3
 # tweepy==4.14.0
 python-dotenv==1.0.1

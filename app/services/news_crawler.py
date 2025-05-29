@@ -6,6 +6,7 @@ from typing import List, Dict
 
 import requests
 from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir)
@@ -28,9 +29,11 @@ class NewsCrawler:
 
     def __init__(self, base_url: str):
         self.base_url = base_url
+        # 랜덤 User-Agent 생성
+        ua = UserAgent()
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
+            'User-Agent': ua.random
+        }        
         logger.info(f"NewsCrawler initialized for base URL: {self.base_url}")
 
     def _parse_date(self, datetime_str: str) -> datetime:
