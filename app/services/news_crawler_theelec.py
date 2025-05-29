@@ -451,10 +451,27 @@ class ThelecNewsCrawler:
 
 # 로컬 테스트를 위한 예시 코드
 if __name__ == "__main__":
-    THELEC_URL = "https://www.thelec.kr/news/articleList.html?sc_section_code=S1N2&view_type=sm"
+    
+    target_section = "반도체"
+    
+    section_url_dict = {
+       "반도체": "https://www.thelec.kr/news/articleList.html?sc_section_code=S1N2&view_type=sm",
+       "자동차": "https://www.thelec.kr/news/articleList.html?sc_section_code=S1N13&view_type=sm",
+       "배터리": "https://www.thelec.kr/news/articleList.html?sc_section_code=S1N9&view_type=sm", 
+    }
+    
+    target_section_en_dict = {
+        "반도체": "semiconductor",
+        "자동차": "automotive",
+        "배터리": "battery",
+    }
+    
+    target_section_en = target_section_en_dict[target_section]
+    
+    THELEC_URL = section_url_dict[target_section]
     
     # 반도체 섹션만 크롤링하도록 설정
-    crawler = ThelecNewsCrawler(THELEC_URL, target_section="자동차")
+    crawler = ThelecNewsCrawler(THELEC_URL, target_section=target_section)
 
     logger.info(f"--- Fetching recent semiconductor articles from {THELEC_URL} ---")
     articles = crawler.fetch_articles(pages=2)
@@ -494,8 +511,8 @@ if __name__ == "__main__":
 
     try:
         import json
-        with open('thelec_semiconductor_articles.json', 'w', encoding='utf-8') as f:
+        with open(f'thelec_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
             json.dump(articles, f, ensure_ascii=False, indent=2)
-        logger.info("Articles saved to thelec_semiconductor_articles.json")
+        logger.info(f"Articles saved to thelec_{target_section_en}_articles.json")
     except ImportError:
         logger.info("JSON module not available, skipping file save.")
