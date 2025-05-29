@@ -216,15 +216,12 @@ class ThelecNewsCrawler:
         seven_days_ago = dt.datetime.now() - dt.timedelta(days=7)
         
         potential_article_elements = []
-        article_rows = soup.find_all('tr')
+        article_rows = soup.find_all('div', class_="table-row")
         if article_rows:
             potential_article_elements.extend(article_rows)
         list_items = soup.find_all(['div', 'li'], class_=re.compile(r'article|list-item|news-item', re.I))
         if list_items:
             potential_article_elements.extend(list_items)
-        direct_article_links = soup.find_all('a', href=re.compile(r'/news/articleView\.html\?idxno=\d+'))
-        if direct_article_links:
-            potential_article_elements.extend(direct_article_links)
 
         seen_elements_text = set()
         unique_potential_articles = []
