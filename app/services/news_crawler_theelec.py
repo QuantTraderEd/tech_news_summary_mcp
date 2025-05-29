@@ -234,7 +234,7 @@ class ThelecNewsCrawler:
             pattern_match = re.compile(r'^auto-article auto-*')
             # To-Do: 못찾는듯... 추가 조치 필요
             matching_divs_find_all = element.find_all('div', class_=pattern_match)
-            logger.info(f"{matching_divs_find_all}")
+            # logger.info(f"{matching_divs_find_all}")
             if matching_divs_find_all:
                 logger.debug(f"Skipping article (class name pattern is auto-article auto-*): {element.get_text()}")
                 continue
