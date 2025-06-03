@@ -30,11 +30,22 @@ class NewsCrawler_ZDNet:
     def __init__(self, base_url: str):
         self.base_url = base_url
         # 랜덤 User-Agent 생성
-        ua = UserAgent()
-        self.headers = {
-            'User-Agent': ua.random
-        }        
+        self.ua = UserAgent()
+        self._update_headers()        
         logger.info(f"NewsCrawler initialized for base URL: {self.base_url}")
+        
+    def _update_headers(self):
+        """랜덤한 User-Agent를 사용하여 헤더를 업데이트합니다."""
+        self.headers = {
+            'User-Agent': self.ua.random,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        }
 
     def _parse_date(self, datetime_str: str) -> datetime:
         """
@@ -62,12 +73,16 @@ class NewsCrawler_ZDNet:
         soup = BeautifulSoup(response.text, 'html.parser')
 
         # ZDNet 뉴스 목록 컨테이너 (예시 CSS 선택자, 실제 웹사이트 검사 필요)
+        top_news = soup.find_all('div', class_='top_news')
+        sub_news = soup.find_all('div', class_='sub_news')
         news_posts = soup.find_all('div', class_='newsPost')
 
-        if not news_posts:
-            logger.warning(f"No news items found with selector '.news_list_area li' on {self.base_url}")
+        if (not news_posts) and (not sub_news):
+            logger.warning(f"Not Found both news_posts and sub_news")
+            logger.warning(f"No news items found on {self.base_url}")
             return news_list
 
+        # news_post 클래스에서 검색된 뉴스 기사 목록
         for post in news_posts:
 
             article_link = post.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그
@@ -105,6 +120,20 @@ class NewsCrawler_ZDNet:
             else:
                 logger.debug(f"Skipping old article: {title} ({published_datetime})")
 
+        # sub_news 클래스에서 검색된 뉴스 기사 목록
+        # To-Do: sub_news 뉴스 목록 데이터 있는 경우 데이터 처리 로직 추가 필요
+        for news_item in sub_news:
+            article_link = news_item.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그            
+            title = news_item.get_text(strip=True) if title_tag else None
+            date_tag = news_item.find("p", class_="byline")
+            span_tag = date_tag.find("span") if date_tag else None
+            article_datetime = span_tag.get_text(strip=True) if span_tag else None
+
+            logger.info("=========================")
+            logger.info(f'title: {title}')
+            logger.info(f'link: {article_link}')
+            logger.info(f'article_datetime: {article_datetime}')
+            
         return news_list
 
     def fetch_article_content(self, article_url: str) -> str:
