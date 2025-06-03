@@ -1,5 +1,7 @@
 .idea
 .env
+venv
+data
 
 # python
 __pycache__
