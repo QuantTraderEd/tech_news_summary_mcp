@@ -21,7 +21,7 @@ stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
 
 
-class NewsCrawler:
+class NewsCrawler_ZDNet:
     """
     지정된 뉴스 웹사이트에서 기사를 크롤링하는 클래스.
     현재 ZDNet Korea의 반도체 뉴스 섹션에 맞춰져 있습니다.
@@ -177,8 +177,25 @@ class NewsCrawler:
 
 # 로컬 테스트를 위한 예시 코드 (실제 네트워크 요청 발생)
 if __name__ == "__main__":
-    ZDNET_URL = "https://zdnet.co.kr/news/?lstcode=0050"  # ZDNet 반도체 뉴스 섹션 URL (가정)
-    crawler = NewsCrawler(ZDNET_URL)
+    target_section = "반도체"
+    
+    section_url_dict = {
+       "반도체": "https://zdnet.co.kr/news/?lstcode=0050",  
+       "자동차": "https://zdnet.co.kr/news/?lstcode=0057&page=1",
+       "배터리": "https://zdnet.co.kr/newskey/?lstcode=%EB%B0%B0%ED%84%B0%EB%A6%AC",  
+    }
+    
+    target_section_en_dict = {
+        "반도체": "semiconductor",
+        "자동차": "automotive",
+        "배터리": "battery",
+    }
+    
+    target_section_en = target_section_en_dict[target_section]
+    
+    ZDNET_URL = section_url_dict[target_section]
+    
+    crawler = NewsCrawler_ZDNet(ZDNET_URL)
 
     logger.info(f"--- Fetching recent articles from {ZDNET_URL} ---")
     articles = crawler.fetch_articles()
@@ -195,7 +212,16 @@ if __name__ == "__main__":
             if i < 10:  # 예시로 첫 2개 기사만 내용 가져오기
                 content = crawler.fetch_article_content(article['url'])
                 logger.info(f"Content Snippet (first 200 chars): {content[:200]}...")
+                article['content'] = content
             else:
                 logger.info("Skipping content fetch for remaining articles for brevity.")
     else:
         logger.warning("No recent articles found or an error occurred.")
+        
+    try:
+        import json
+        with open(f'zdnet_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
+            json.dump(articles, f, ensure_ascii=False, indent=2)
+        logger.info(f"Articles saved to zdnet_{target_section_en}_articles.json")
+    except ImportError:
+        logger.info("JSON module not available, skipping file save.")
