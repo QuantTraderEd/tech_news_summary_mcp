@@ -133,6 +133,20 @@ class NewsCrawler_ZDNet:
             logger.info(f'title: {title}')
             logger.info(f'link: {article_link}')
             logger.info(f'article_datetime: {article_datetime}')
+        
+        # top_news 클래스에서 검색된 뉴스 기사 목록
+        # To-Do: top_news 뉴스 목록 데이터 있는 경우 데이터 처리 로직 추가 필요
+        for news_item in top_news:
+            article_link = news_item.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그            
+            title = news_item.get_text(strip=True) if title_tag else None
+            date_tag = news_item.find("p", class_="byline")
+            span_tag = date_tag.find("span") if date_tag else None
+            article_datetime = span_tag.get_text(strip=True) if span_tag else None
+
+            logger.info("=========================")
+            logger.info(f'title: {title}')
+            logger.info(f'link: {article_link}')
+            logger.info(f'article_datetime: {article_datetime}')
             
         return news_list
 
