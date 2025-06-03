@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 
 src_path = os.path.dirname(__file__)
-pjt_home_path = os.path.join(src_path, os.pardir)
+pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 
 # 로깅 설정
@@ -220,7 +220,7 @@ if __name__ == "__main__":
         
     try:
         import json
-        with open(f'zdnet_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
+        with open(f'{pjt_home_path}/data/zdnet_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
             json.dump(articles, f, ensure_ascii=False, indent=2)
         logger.info(f"Articles saved to zdnet_{target_section_en}_articles.json")
     except ImportError:
