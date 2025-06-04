@@ -5,3 +5,6 @@ data
 
 # python
 __pycache__
+
+
+config.json
