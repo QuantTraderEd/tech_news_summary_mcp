@@ -41,12 +41,13 @@ tech_news_summary_mcp/
 │   └── models/
 │       ├── __init__.py
 │       └── news_item.py         # 뉴스 및 트윗 데이터를 통합하여 표현할 데이터 모델 (신규)
+├── data/
 ├── Dockerfile
 ├── requirements.txt
 └── .env
 ```
 
-### 주요 파일별 역할 (세부 소스코드 제외)
+### 주요 파일과 폴더별 역할
 
 - app/main.py: FastAPI 애플리케이션의 핵심 로직을 포함합니다. HTTP 엔드포인트를 정의하고, 각 서비스 모듈을 호출하여 뉴스 수집, 요약, 이메일 발송 과정을 조율합니다.  
 - app/config.py: 애플리케이션에서 사용하는 모든 환경 변수(API 키, SMTP 정보 등)를 로드하고 관리합니다.  
@@ -56,7 +57,8 @@ tech_news_summary_mcp/
     - data_integrator.py: news_crawler와 twitter_collector에서 수집된 다양한 형태의 데이터를 표준화된 NewsItem 모델로 변환하고, 중복을 제거하며, 보고서 작성을 위해 데이터를 준비합니다.  
     - summarizer.py: data_integrator에서 전달받은 텍스트 데이터를 요약하는 기능을 담당합니다. LLM API를 호출하거나 자체 요약 로직을 포함할 수 있습니다.  
     - email_sender.py: 요약된 보고서를 이메일로 구성하고 지정된 수신자에게 발송하는 기능을 담당합니다.  
-- app/models/news_item.py: 크롤링된 뉴스 기사와 트윗 데이터를 통합하여 관리하기 위한 데이터 구조(예: 제목, 내용, URL, 원본 소스, 날짜 등)를 정의합니다.  
+- app/models/news_item.py: 크롤링된 뉴스 기사와 트윗 데이터를 통합하여 관리하기 위한 데이터 구조(예: 제목, 내용, URL, 원본 소스, 날짜 등)를 정의합니다.
+- data/ 뉴스데이터 수집 후 json 파일로 저장할 위치. json 파일은 GCS 에 일자별 저장
 - Dockerfile: 애플리케이션을 실행하기 위한 Docker 이미지를 빌드하는 방법을 정의합니다. 파이썬 버전, 의존성 설치, 애플리케이션 코드 복사 및 실행 명령어 등을 포함합니다.  
 - requirements.txt: 프로젝트에 필요한 모든 Python 라이브러리 목록을 정의합니다. tweepy와 같이 X API를 다루기 위한 라이브러리가 추가될 것입니다.  
 - .env: 로컬 개발 환경에서 사용될 환경 변수들을 저장합니다. 배포 시에는 GCP Secret Manager와 같은 보안 서비스를 통해 관리될 것입니다.  
