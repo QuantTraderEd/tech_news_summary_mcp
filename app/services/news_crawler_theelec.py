@@ -1,16 +1,18 @@
-import logging
 import os
 import sys
+import logging
+import traceback
 import datetime as dt
-from typing import List, Dict
 import re
+from typing import List, Dict
 
+import pytz
 import requests
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 
 src_path = os.path.dirname(__file__)
-pjt_home_path = os.path.join(src_path, os.pardir)
+pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 
 # 로깅 설정
@@ -21,6 +23,7 @@ stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
 
+kst_timezone = pytz.timezone('Asia/Seoul')
 
 class ThelecNewsCrawler:
     """
@@ -33,8 +36,18 @@ class ThelecNewsCrawler:
         self.target_section = target_section  # 필터링할 섹션 추가
         self.ua = UserAgent()
         self._update_headers()
+        
+        self.end_date = dt.datetime.now(kst_timezone)
+        self.start_date = self.end_date - dt.timedelta(days=3)
         logger.info(f"ThelecNewsCrawler initialized for base URL: {self.base_url}")
         logger.info(f"Target section: {self.target_section}")
+        
+    def set_target_date_range(self, start_date: dt.datetime, end_date: dt.datetime):
+        """
+        뉴스 기사 필터링 일자 설정 함수
+        """
+        self.start_date = start_date
+        self.end_date = end_date
 
     def _is_target_section(self, article_element) -> bool:
         """
@@ -169,9 +182,13 @@ class ThelecNewsCrawler:
             return None
 
         except requests.RequestException as e:
+            msg = traceback.format_exc()
+            logger.error(msg)
             logger.error(f"Network error fetching article page {article_url} for date extraction: {e}")
             return None
         except Exception as e:
+            msg = traceback.format_exc()
+            logger.error(msg)
             logger.error(f"Error parsing article page {article_url} for date extraction: {e}")
             return None
 
@@ -197,19 +214,22 @@ class ThelecNewsCrawler:
             return None
 
         except requests.RequestException as e:
+            msg = traceback.format_exc()
+            logger.error(msg)
             logger.warning(f"Network error fetching {article_url} for section meta: {e}")
             return None
         except Exception as e:
+            msg = traceback.format_exc()
+            logger.error(msg)
             logger.warning(f"Error parsing {article_url} for section meta: {e}")
             return None
 
     def _extract_section_from_page(self, soup) -> List[Dict[str, str]]:
         """
-        페이지에서 기사 목록을 추출하고 목표 섹션 및 최근 7일 이내 기사만 필터링합니다.
+        페이지에서 기사 목록을 추출하고 목표 섹션 및 설정된 일자 (디폴트 최근 3일) 이내 기사만 필터링합니다.
         디일렉 웹사이트의 HTML 구조를 기반으로 기사를 찾습니다.
         """
         articles = []
-        seven_days_ago = dt.datetime.now() - dt.timedelta(days=7)
         
         potential_article_elements = []
         article_rows = soup.find_all('div', class_="table-row")
@@ -306,8 +326,9 @@ class ThelecNewsCrawler:
                 # If is_section_match_from_list was False AND meta_section check failed, we continue (skip).
                 # If is_section_match_from_list was False AND meta_section check passed, we proceed.
 
-            # Check if the article is within the last 7 days
-            if published_datetime >= seven_days_ago:
+            # Check if the article is within from start_date to end_date
+            published_datetime = kst_timezone.localize(published_datetime)
+            if published_datetime >= self.start_date and published_datetime <= self.end_date:
                 articles.append({
                     "title": title,
                     "url": article_url,
@@ -327,9 +348,12 @@ class ThelecNewsCrawler:
         디일렉의 HTML 구조에 맞춰져 있으며, 특정 섹션만 필터링합니다.
         """
         news_list = []
-        seven_days_ago = dt.datetime.now() - dt.timedelta(days=7)
-        logger.info(f"Fetching articles from {self.base_url} published after {seven_days_ago.strftime('%Y-%m-%d')}")
-        logger.info(f"Filtering for section: {self.target_section}")
+        
+        str_start_date = self.start_date.strftime('%Y-%m-%d')
+        str_end_date = self.end_date.strftime('%Y-%m-%d')
+        
+        logger.info(f"Fetching articles from {self.base_url}")
+        logger.info(f"Filtering for section: {self.target_section} published from {str_start_date} to {str_end_date}")
 
         for page in range(1, pages + 1):
             try:
@@ -351,9 +375,13 @@ class ThelecNewsCrawler:
                 news_list.extend(section_articles)
                 
             except requests.RequestException as e:
+                msg = traceback.format_exc()
+                logger.error(msg)
                 logger.error(f"Error fetching page {page}: {e}")
                 continue
             except Exception as e:
+                msg = traceback.format_exc()
+                logger.error(msg)
                 logger.error(f"Unexpected error on page {page}: {e}")
                 continue
 
@@ -444,9 +472,13 @@ class ThelecNewsCrawler:
                 return "기사 내용을 찾을 수 없습니다."
                 
         except requests.RequestException as e:
+            msg = traceback.format_exc()
+            logger.error(msg)
             logger.error(f"Network error fetching {article_url}: {e}")
             return f"네트워크 오류: {e}"
         except Exception as e:
+            msg = traceback.format_exc()
+            logger.error(msg)
             logger.error(f"Error parsing content from {article_url}: {e}")
             return f"파싱 오류: {e}"
 
@@ -484,36 +516,34 @@ if __name__ == "__main__":
             logger.info(f"\n--- Article {i + 1} ---")
             logger.info(f"Title: {article['title']}")
             logger.info(f"URL: {article['url']}")
-            logger.info(f"Published Date: {article['published_date']}")
-        
-            if i < 3:
-                content = crawler.fetch_article_content(article['url'])
-                logger.info(f"Content Snippet (first 300 chars): {content[:300]}...")
-                article['content'] = content
-            else:
-                logger.info("Skipping content fetch for remaining articles for brevity.")
+            logger.info(f"Published Date: {article['published_date']}")        
+            
+            content = crawler.fetch_article_content(article['url'])
+            logger.info(f"Content Snippet (first 300 chars): {content[:300]}...")
+            article['content'] = content
+            
     else:
         logger.warning("No recent semiconductor articles found or an error occurred.")
 
-    test_article_url = "https://www.thelec.kr/news/articleView.html?idxno=36117"
-    logger.info(f"\n--- Testing _get_published_date_from_article_page with: {test_article_url} ---")
-    published_date = crawler._get_published_date_from_article_page(test_article_url)
-    if published_date:
-        logger.info(f"Extracted Published Date from article page: {published_date.strftime('%Y-%m-%d %H:%M')}")
-    else:
-        logger.warning(f"Failed to extract published date from: {test_article_url}")
+    # test_article_url = "https://www.thelec.kr/news/articleView.html?idxno=36117"
+    # logger.info(f"\n--- Testing _get_published_date_from_article_page with: {test_article_url} ---")
+    # published_date = crawler._get_published_date_from_article_page(test_article_url)
+    # if published_date:
+    #     logger.info(f"Extracted Published Date from article page: {published_date.strftime('%Y-%m-%d %H:%M')}")
+    # else:
+    #     logger.warning(f"Failed to extract published date from: {test_article_url}")
 
-    test_article_url_section = "https://www.thelec.kr/news/articleView.html?idxno=36493"
-    logger.info(f"\n--- Testing _get_section_from_article_page with: {test_article_url_section} ---")
-    extracted_section = crawler._get_section_from_article_page(test_article_url_section)
-    if extracted_section:
-        logger.info(f"Extracted Section from article page: {extracted_section}")
-    else:
-        logger.warning(f"Failed to extract section from: {test_article_url_section}")
+    # test_article_url_section = "https://www.thelec.kr/news/articleView.html?idxno=36493"
+    # logger.info(f"\n--- Testing _get_section_from_article_page with: {test_article_url_section} ---")
+    # extracted_section = crawler._get_section_from_article_page(test_article_url_section)
+    # if extracted_section:
+    #     logger.info(f"Extracted Section from article page: {extracted_section}")
+    # else:
+    #     logger.warning(f"Failed to extract section from: {test_article_url_section}")
 
     try:
         import json
-        with open(f'thelec_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
+        with open(f'{pjt_home_path}/data/thelec_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
             json.dump(articles, f, ensure_ascii=False, indent=2)
         logger.info(f"Articles saved to thelec_{target_section_en}_articles.json")
     except ImportError:
