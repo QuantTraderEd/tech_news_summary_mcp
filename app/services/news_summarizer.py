@@ -64,33 +64,37 @@ def summarize_news(news_item, num_sentences=3):
         return f"요약 실패: {e}"
 
 def main():
-    # json_file_path = f'{pjt_home_path}/data/zdnet_semiconductor_articles.json' # 뉴스 데이터 JSON 파일 경로
-    json_file_path = f'{pjt_home_path}/data/thelec_semiconductor_articles.json' # 뉴스 데이터 JSON 파일 경로
+    
+    news_source_list = ['zdnet', 'thelec']
+    summarized_results = []    
+    
+    for news_source in news_source_list:
+        logger.info(f"뉴스사이트: {news_source}")
+        json_file_path = f'{pjt_home_path}/data/{news_source}_semiconductor_articles.json' # 뉴스 데이터 JSON 파일 경로
 
-    try:
-        with open(json_file_path, 'r', encoding='utf-8') as f:
-            news_data_list = json.load(f)
-    except FileNotFoundError:
-        logger.error(f"Error: '{json_file_path}' 파일을 찾을 수 없습니다.")
-        return
-    except json.JSONDecodeError:
-        logger.error(f"Error: '{json_file_path}' 파일이 유효한 JSON 형식이 아닙니다.")
-        return
+        try:
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                news_data_list = json.load(f)
+        except FileNotFoundError:
+            logger.error(f"Error: '{json_file_path}' 파일을 찾을 수 없습니다.")
+            return
+        except json.JSONDecodeError:
+            logger.error(f"Error: '{json_file_path}' 파일이 유효한 JSON 형식이 아닙니다.")
+            return
 
-    logger.info(f"총 {len(news_data_list)}개의 뉴스 기사를 요약합니다.\n")
+        logger.info(f"총 {len(news_data_list)}개의 뉴스 기사를 요약합니다.\n")
+        
+        for news_item in news_data_list:
+            news_title = news_item.get('title', 'N/A')
+            logger.info(f"--- 뉴스 타이틀: {news_title} ---")
+            summary = summarize_news(news_item, num_sentences=3)
+            logger.info(f"요약:\n{summary}\n")
 
-    summarized_results = []
-    for news_item in news_data_list:
-        news_title = news_item.get('title', 'N/A')
-        logger.info(f"--- 뉴스 타이틀: {news_title} ---")
-        summary = summarize_news(news_item, num_sentences=3)
-        logger.info(f"요약:\n{summary}\n")
-
-        summarized_results.append({
-            "title": news_title,
-            "date": news_item.get('published_date', 'N/A'),            
-            "summary": summary
-        })
+            summarized_results.append({
+                "title": news_title,
+                "date": news_item.get('published_date', 'N/A'),            
+                "summary": summary
+            })
 
     # 요약된 결과를 새로운 JSON 파일로 저장 (선택 사항)
     output_json_path = f'{pjt_home_path}/data/summarized_news.json'
