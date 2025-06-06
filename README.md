@@ -41,7 +41,8 @@ tech_news_summary_mcp/
 │   └── models/
 │       ├── __init__.py
 │       └── news_item.py         # 뉴스 및 트윗 데이터를 통합하여 표현할 데이터 모델 (신규)
-├── data/
+├── data/                        # json 파일 데이터
+├── tests                        # 단위 테스트 코드
 ├── Dockerfile
 ├── requirements.txt
 └── .env
