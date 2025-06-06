@@ -4,11 +4,7 @@ import site
 import logging
 import traceback
 import pytest
-from unittest import mock
 
-from datetime import datetime
-
-# 테스트할 함수가 있는 모듈을 임포트합니다.
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
