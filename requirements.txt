@@ -11,3 +11,4 @@ openai==1.35.13 # if using OpenAI
 pandas==2.2.3
 # snscrape==0.7.0.20230622 # 테스트 결과 트위터 데이터 정상 조회 안됨
 # twint==2.1.20 # 테스트 결과 트위터 데이터 정상 조회 안됨
+google-cloud-storage==3.1.0
