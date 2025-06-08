@@ -89,20 +89,25 @@ def main(base_ymd: str):
             
             for news_item in news_data_list:
                 news_title = news_item.get('title', 'N/A')
+                news_url = news_item.get('url', 'N/A')
                 logger.info(f"--- 뉴스 타이틀: {news_title} ---")
                 summary = summarize_news(news_item, num_sentences=3)
                 logger.info(f"요약:\n{summary}\n")
 
                 summarized_results.append({
                     "title": news_title,
-                    "date": news_item.get('published_date', 'N/A'),            
+                    "date": news_item.get('published_date', 'N/A'),
+                    "url":  news_url,     
                     "summary": summary
                 })
-
+         
+        # 요약 결과를 'date'를 1차 기준으로, 'url'을 2차 기준으로 정렬
+        sorted_results = sorted(summarized_results, key=lambda x: (x['date'], x['url']), reverse=True)
+        
         # 요약된 결과를 새로운 JSON 파일로 저장
         output_json_path = f'{pjt_home_path}/data/summarized_news.json'
         with open(output_json_path, 'w', encoding='utf-8') as f:
-            json.dump(summarized_results, f, ensure_ascii=False, indent=2)
+            json.dump(sorted_results, f, ensure_ascii=False, indent=2)
         logger.info(f"\n모든 요약이 완료되었습니다. 결과는 '{output_json_path}'에 저장되었습니다.")
         
         # json 파일 GCS 에 업로드
