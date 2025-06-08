@@ -47,18 +47,16 @@ def mock_gcs(mocker):
     return mock_client, mock_bucket, mock_blob
 
 @pytest.fixture
-def mock_os(mocker):
+def mock_os_path(mocker):
     """
-    os.path.exists와 os.listdir을 목(mock) 처리하는 픽스처.
+    os.path.exists와 os.path.basename을 목(mock) 처리하는 픽스처.
     """
     mock_exists = mocker.patch('os.path.exists')
-    mock_listdir = mocker.patch('os.listdir')
-    # os.path.join이 가변 인수를 받도록 변경
-    mock_join = mocker.patch('os.path.join', side_effect=lambda *args: os.path.sep.join(args))
-    return mock_exists, mock_listdir, mock_join
+    mock_basename = mocker.patch('os.path.basename')
+    return mock_exists, mock_basename
 
 @pytest.fixture
-def caplog_level_info(caplog):
+def caplog_setup(caplog):
     """
     pytest의 caplog 픽스처를 사용하여 로깅 레벨을 INFO로 설정합니다.
     """
@@ -67,143 +65,132 @@ def caplog_level_info(caplog):
 
 # --- 테스트 케이스들 ---
 
-def test_upload_success_specific_date(mock_gcs, mock_os, caplog_level_info):
+def test_upload_success(mock_gcs, mock_os_path, caplog_setup):
     """
-    특정 날짜로 JSON 파일이 성공적으로 업로드되는지 테스트합니다.
+    로컬 파일이 Google Cloud Storage로 성공적으로 업로드되는지 테스트합니다.
     """
+    # 픽스처에서 반환된 목(mock) 객체들을 언팩합니다.
     _, mock_bucket, mock_blob = mock_gcs
-    mock_exists, mock_listdir, _ = mock_os
+    mock_exists, mock_basename = mock_os_path
 
-    mock_exists.return_value = True # 디렉토리가 존재한다고 가정
-    mock_listdir.return_value = ['file1.json', 'image.png', 'file2.json'] # 디렉토리 내용
+    # 목(mock) 함수의 반환 값을 설정합니다.
+    mock_exists.return_value = True # 로컬 파일이 존재한다고 가정
+    mock_basename.return_value = 'my_document.json' # 파일 이름 추출 결과 시뮬레이션
 
-    test_date = '20231225'
-    local_dir = 'my_data'
-    bucket_name = 'my_test_bucket'
-    base_path = 'my_news'
+    # 테스트에 사용할 인자들을 정의합니다.
+    local_file = '/home/user/data/my_document.json'
+    bucket_name = 'my-private-data-bucket'
+    gcs_base = 'archive_data'
+    date_str = '20231026'
 
-    gcs_upload_json.upload_json_files_to_gcs(local_data_dir=local_dir, bucket_name=bucket_name, gcs_base_path=base_path, date_str=test_date)
+    # 테스트 대상 함수를 호출합니다.
+    ret = gcs_upload_json.upload_local_file_to_gcs(local_file, bucket_name, gcs_base, date_str)
+    assert ret == 0
 
-    # GCS 클라이언트와 버킷 메서드가 올바르게 호출되었는지 확인
-    mock_bucket.blob.assert_any_call(f"{base_path}/{test_date}/file1.json")
-    mock_bucket.blob.assert_any_call(f"{base_path}/{test_date}/file2.json")
-    assert mock_blob.upload_from_filename.call_count == 2 # 2개의 JSON 파일이 업로드됨
+    # GCS 관련 목(mock) 메서드들이 올바른 인수로 호출되었는지 검증합니다.
+    mock_exists.assert_called_once_with(local_file)
+    mock_bucket.blob.assert_called_once_with(f"{gcs_base}/{date_str}/my_document.json")
+    mock_blob.upload_from_filename.assert_called_once_with(local_file)
 
-    # 로그 메시지 확인
-    assert f"JSON 파일을 '{local_dir}'에서 'gs://{bucket_name}/{base_path}/{test_date}/'(으)로 업로드 시작." in caplog_level_info.text
-    assert f"성공적으로 'file1.json'을(를) 'gs://{bucket_name}/{base_path}/{test_date}/file1.json'에 업로드했습니다." in caplog_level_info.text
-    assert f"성공적으로 'file2.json'을(를) 'gs://{bucket_name}/{base_path}/{test_date}/file2.json'에 업로드했습니다." in caplog_level_info.text
-    assert f"JSON 파일이 아닌 파일 건너뛰기: 'image.png'" in caplog_level_info.text
+    # 로깅 메시지를 검증합니다.
+    assert f"start upload '{local_file}' file to 'gs://{bucket_name}/{gcs_base}/{date_str}/'..." in caplog_setup.text
+    assert f"finish to upload 'my_document.json' to 'gs://{bucket_name}/{gcs_base}/{date_str}/my_document.json'!!!" in caplog_setup.text
 
-
-def test_upload_success_current_date(mock_gcs, mock_os, caplog_level_info, mocker):
+def test_local_file_not_exists(mock_gcs, mock_os_path, caplog_setup):
     """
-    현재 날짜로 JSON 파일이 성공적으로 업로드되는지 테스트합니다.
+    로컬 파일이 존재하지 않을 때 함수가 적절히 처리하는지 테스트합니다.
     """
-    _, mock_bucket, mock_blob = mock_gcs
-    mock_exists, mock_listdir, _ = mock_os
+    mock_exists, _ = mock_os_path
+    mock_exists.return_value = False # 로컬 파일이 존재하지 않는다고 가정
 
-    mock_exists.return_value = True
-    mock_listdir.return_value = ['article.json']
+    local_file = '/non/existent/path/non_existent_file.txt'
 
-    # datetime.now().strftime()을 목(mock) 처리하여 특정 날짜를 반환하게 합니다.
-    # gcs_uploader 모듈의 datetime을 패치 (실제 파일 경로 사용)
-    # 현재 코드 구조상 (함수가 테스트 파일 내에 직접 정의됨), 'datetime.datetime'으로 직접 패치하는 것이 올바릅니다.
-    mock_datetime_now = mocker.patch('datetime.datetime')
-    mock_datetime_now.now.return_value.strftime.return_value = '20240101' # 고정된 현재 날짜
+    ret = gcs_upload_json.upload_local_file_to_gcs(local_file)
+    assert ret == 1
 
-    local_dir = 'current_data'
-    bucket_name = 'current_bucket'
-    base_path = 'daily_news'
+    # 파일 존재 여부만 확인하고, GCS 관련 작업은 수행되지 않아야 합니다.
+    mock_exists.assert_called_once_with(local_file)
+    mock_gcs[0].bucket.assert_not_called() # Client().bucket()이 호출되지 않아야 함
+    mock_gcs[1].blob.assert_not_called() # bucket.blob()이 호출되지 않아야 함
+    mock_gcs[2].upload_from_filename.assert_not_called() # upload_from_filename이 호출되지 않아야 함
 
-    gcs_upload_json.upload_json_files_to_gcs(local_data_dir=local_dir, bucket_name=bucket_name, gcs_base_path=base_path)
+    # 오류 로그 메시지를 검증합니다.
+    assert f"local data file '{local_file}' doesn't exist!!" in caplog_setup.text
+    assert "start upload" not in caplog_setup.text # 업로드 시작 로그는 찍히지 않아야 함
 
-    mock_bucket.blob.assert_called_once_with(f"{base_path}/20240101/article.json")
-    mock_blob.upload_from_filename.assert_called_once()
-    assert f"JSON 파일을 '{local_dir}'에서 'gs://{bucket_name}/{base_path}/20240101/'(으)로 업로드 시작." in caplog_level_info.text
-
-
-def test_local_dir_not_exists(mock_gcs, mock_os, caplog_level_info):
+def test_bucket_access_failure(mock_gcs, mock_os_path, caplog_setup):
     """
-    로컬 데이터 디렉토리가 존재하지 않을 때 함수가 올바르게 처리하는지 테스트합니다.
-    """
-    _, mock_bucket, mock_blob = mock_gcs
-    mock_exists, mock_listdir, _ = mock_os
-
-    mock_exists.return_value = False # 디렉토리가 존재하지 않음
-
-    local_dir = 'non_existent_data'
-    gcs_upload_json.upload_json_files_to_gcs(local_data_dir=local_dir)
-
-    mock_bucket.assert_not_called() # GCS 관련 메서드는 호출되지 않아야 함
-    mock_listdir.assert_not_called() # os.listdir도 호출되지 않아야 함
-    assert f"로컬 데이터 디렉토리 '{local_dir}'가 존재하지 않습니다." in caplog_level_info.text
-    assert mock_blob.upload_from_filename.call_count == 0
-
-
-def test_no_json_files_in_dir(mock_gcs, mock_os, caplog_level_info):
-    """
-    디렉토리에 JSON 파일이 없을 때 함수가 올바르게 동작하는지 테스트합니다.
-    """
-    _, mock_bucket, mock_blob = mock_gcs
-    mock_exists, mock_listdir, _ = mock_os
-
-    mock_exists.return_value = True
-    mock_listdir.return_value = ['image.png', 'document.txt'] # JSON 파일 없음
-
-    local_dir = 'empty_json_data'
-    gcs_upload_json.upload_json_files_to_gcs(local_data_dir=local_dir)
-
-    mock_bucket.blob.assert_not_called() # blob 메서드는 호출되지 않아야 함
-    mock_blob.upload_from_filename.assert_not_called() # 업로드도 발생하지 않아야 함
-    assert f"JSON 파일이 아닌 파일 건너뛰기: 'image.png'" in caplog_level_info.text
-    assert f"JSON 파일이 아닌 파일 건너뛰기: 'document.txt'" in caplog_level_info.text
-    assert "업로드 시작" in caplog_level_info.text # 시작 로그는 찍혀야 함
-
-
-def test_gcs_bucket_access_failure(mock_gcs, mock_os, caplog_level_info):
-    """
-    GCS 버킷 접근에 실패했을 때 함수가 올바르게 처리하는지 테스트합니다.
+    GCS 버킷 접근에 실패했을 때 함수가 적절히 처리하는지 테스트합니다.
     """
     mock_client, _, _ = mock_gcs
-    mock_exists, _, _ = mock_os
+    mock_exists, _ = mock_os_path
 
-    mock_exists.return_value = True
-    mock_client.bucket.side_effect = Exception("버킷 접근 권한 없음") # 버킷 접근 시 예외 발생
+    mock_exists.return_value = True # 로컬 파일은 존재한다고 가정
+    # bucket() 호출 시 예외를 발생시키도록 설정합니다.
+    mock_client.bucket.side_effect = Exception("Google Cloud Storage API - Permission Denied")
 
-    test_bucket_name = "invalid_bucket"
-    gcs_upload_json.upload_json_files_to_gcs(bucket_name=test_bucket_name)
+    test_bucket_name = "restricted-access-bucket"
+    local_file = '/data/valid_file.json'
 
-    assert f"버킷 '{test_bucket_name}'에 접근할 수 없습니다: 버킷 접근 권한 없음" in caplog_level_info.text
+    ret = gcs_upload_json.upload_local_file_to_gcs(local_file, bucket_name=test_bucket_name)
+    assert ret == 2
 
+    # GCS 관련 메서드 호출 및 로그 검증
+    mock_exists.assert_called_once_with(local_file)
+    mock_client.bucket.assert_called_once_with(test_bucket_name)
+    mock_gcs[1].blob.assert_not_called()
+    mock_gcs[2].upload_from_filename.assert_not_called()
 
-def test_file_upload_failure(mock_gcs, mock_os, caplog_level_info):
+    assert f"bucket '{test_bucket_name}': can not access!! Google Cloud Storage API - Permission Denied" in caplog_setup.text
+    assert "start upload" not in caplog_setup.text # 업로드 시작 로그는 찍히지 않아야 함
+
+def test_file_upload_failure_raises_exception(mock_gcs, mock_os_path, caplog_setup):
     """
-    파일 업로드 중 예외가 발생했을 때 함수가 올바르게 처리하는지 테스트합니다.
+    파일 업로드 중 예외가 발생했을 때 예외가 다시 발생하고 적절한 로그가 남는지 테스트합니다.
+    """
+    _, _, mock_blob = mock_gcs
+    mock_exists, mock_basename = mock_os_path
+
+    mock_exists.return_value = True # 로컬 파일은 존재한다고 가정
+    mock_basename.return_value = 'failed_upload_file.json'
+    # upload_from_filename() 호출 시 예외를 발생시키도록 설정합니다.
+    mock_blob.upload_from_filename.side_effect = Exception("Network error during upload")
+
+    local_file = '/data/some_file_to_fail.json'
+
+    # 원본 함수가 예외를 다시 발생시키므로, pytest.raises를 사용하여 이를 잡습니다.
+    with pytest.raises(Exception) as excinfo:
+        gcs_upload_json.upload_local_file_to_gcs(local_file)
+
+    # Assertions
+    mock_blob.upload_from_filename.assert_called_once_with(local_file)
+    assert "Network error during upload" in str(excinfo.value) # 발생한 예외의 메시지 확인
+
+    # 로그 검증
+    assert f"start upload '{local_file}' file to 'gs://gcs-private-pjt-data/news_data/20000101/'..." in caplog_setup.text
+    assert f"'failed_upload_file.json' upload fail!!! => Network error during upload" in caplog_setup.text
+
+
+def test_default_date_string(mock_gcs, mock_os_path, caplog_setup):
+    """
+    date_str이 지정되지 않았을 때 기본값 '20000101'이 사용되는지 테스트합니다.
     """
     _, mock_bucket, mock_blob = mock_gcs
-    mock_exists, mock_listdir, _ = mock_os
+    mock_exists, mock_basename = mock_os_path
 
     mock_exists.return_value = True
-    mock_listdir.return_value = ['fail_file.json']
-    mock_blob.upload_from_filename.side_effect = Exception("권한 부족") # 업로드 시 예외 발생
+    mock_basename.return_value = 'default_date_test.json'
 
-    gcs_upload_json.upload_json_files_to_gcs() # 기본 인자 사용
+    local_file = '/path/to/default/date_file.json'
+    bucket_name = 'default-test-bucket'
+    gcs_base = 'default_news'
 
-    mock_blob.upload_from_filename.assert_called_once()
-    assert f"'{'fail_file.json'}' 업로드 실패: 권한 부족" in caplog_level_info.text
-    assert "업로드 시작" in caplog_level_info.text # 시작 로그는 찍혀야 함
+    # date_str 인자를 생략하고 함수를 호출합니다.
+    gcs_upload_json.upload_local_file_to_gcs(local_file, bucket_name, gcs_base)
 
+    # GCS 경로에 기본 날짜 '20000101'이 사용되었는지 검증합니다.
+    mock_bucket.blob.assert_called_once_with(f"{gcs_base}/20000101/default_date_test.json")
+    mock_blob.upload_from_filename.assert_called_once_with(local_file)
 
-def test_invalid_date_string_format(mock_gcs, mock_os, caplog_level_info):
-    """
-    잘못된 날짜 문자열 형식이 제공되었을 때 함수가 올바르게 처리하는지 테스트합니다.
-    """
-    mock_exists, _, _ = mock_os
-    mock_exists.return_value = True
-
-    invalid_date = '2023-12-25' # 잘못된 형식
-    gcs_upload_json.upload_json_files_to_gcs(date_str=invalid_date)
-
-    assert f"유효하지 않은 날짜 문자열 형식입니다: '{invalid_date}'. YYYYMMDD 형식이어야 합니다." in caplog_level_info.text
-    assert "업로드 시작" not in caplog_level_info.text # 업로드 시작 로그는 찍히지 않아야 함
+    # 로그 메시지에서도 기본 날짜가 사용되었는지 확인합니다.
+    assert f"start upload '{local_file}' file to 'gs://{bucket_name}/{gcs_base}/20000101/'..." in caplog_setup.text

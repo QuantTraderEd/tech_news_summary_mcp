@@ -34,17 +34,19 @@ def upload_local_file_to_gcs(local_file_path: str,
         gcs_base_path (str): GCS 버킷 내의 기본 경로 (예: 'news_data').
         date_str (str, optional): GCS 경로에 사용할 날짜 문자열 (YYYYMMDD 형식).
                                   지정하지 않으면 과거 날짜 (20000101) 를 사용합니다.
+    Returns:
+        int: 0: 성공, 1: 로컬파일 없음, 2: gcs 접근 애러
     """
     if not os.path.exists(local_file_path):
         logger.error(f"local data file '{local_file_path}' doesn't exist!!")
-        return
+        return 1
 
     storage_client = storage.Client()
     try:
         bucket = storage_client.bucket(bucket_name)
     except Exception as e:
         logger.error(f"bucket '{bucket_name}': can not access!! {e}")
-        return
+        return 2
 
     gcs_destination_path = f"{gcs_base_path}/{date_str}/"
 
@@ -60,7 +62,8 @@ def upload_local_file_to_gcs(local_file_path: str,
     except Exception as e:
         logger.error(f"'{filename}' upload fail!!! => {e}")
         raise
-        
+    
+    return 0
             
 def local_test():
     # 테스트를 위해 'data' 디렉토리와 더미 JSON 파일 생성
@@ -89,7 +92,8 @@ def main(target_news_site: str, base_ymd: str):
     """
     articles.json 파일 GCS 업로드 메인 배치
     :param str target_news_site: 뉴스 수집 사이트 이름 (zdnet, thelec)
-    :param str base_ymd: GCS 업로드 날짜 (yyyymmdd)
+    :param str base_ymd: GCS 업로드 날짜 (yyyymmdd)  
+    :return: None
     """
     
     local_data_dir=f'{pjt_home_path}/data'
@@ -127,7 +131,7 @@ if __name__ == "__main__":
         "base_ymd",
         type=str,
         default=dt.datetime.now(kst_timezone).strftime("%Y%m%d"), # 기본값은 현재 날짜
-        help="뉴스 수집 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
+        help="뉴스 데이터 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
         nargs='?'
     )
     
@@ -139,5 +143,6 @@ if __name__ == "__main__":
     except ValueError:
         parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
 
-    # main(target_news_site=args.target_news_site, base_ymd=args.base_ymd)
-    local_test()
+    # local_test()
+    main(target_news_site=args.target_news_site, base_ymd=args.base_ymd)
+    
