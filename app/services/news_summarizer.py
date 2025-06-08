@@ -4,7 +4,9 @@ import site
 import logging
 import traceback
 import json
+import datetime as dt
 
+import pytz
 import google.generativeai as genai
 
 src_path = os.path.dirname(__file__)
@@ -21,6 +23,8 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
+
+kst_timezone = pytz.timezone('Asia/Seoul')
 
 # config.json 파일에서 API 키 불러오기
 with open(f'{pjt_home_path}/config.json', 'r') as config_file:
