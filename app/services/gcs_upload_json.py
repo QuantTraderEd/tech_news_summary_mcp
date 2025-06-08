@@ -3,6 +3,8 @@ import sys
 import logging
 import traceback
 import datetime as dt
+
+import pytz
 from google.cloud import storage
 
 src_path = os.path.dirname(__file__)
@@ -17,77 +19,125 @@ stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
 
-def upload_json_files_to_gcs(local_data_dir=f'{pjt_home_path}/data', bucket_name='gcs-private-pjt-data', gcs_base_path='news_data', date_str=None):
+kst_timezone = pytz.timezone('Asia/Seoul')
+
+def upload_local_file_to_gcs(local_file_path: str, 
+                             bucket_name: str ='gcs-private-pjt-data', 
+                             gcs_base_path: str ='news_data', 
+                             date_str: str ='20000101'):
     """
-    JSON 파일을 로컬 디렉토리에서 Google Cloud Storage로 업로드합니다.
+    로컬 파일을 Google Cloud Storage로 업로드합니다.
 
     Args:
-        local_data_dir (str): JSON 파일이 있는 로컬 디렉토리 (예: 'data').
+        local_dalocal_file_pathta_dir (str): JSON 경로 + 파일이름 (예: '/data/news_data.json').
         bucket_name (str): GCS 버킷 이름.
         gcs_base_path (str): GCS 버킷 내의 기본 경로 (예: 'news_data').
         date_str (str, optional): GCS 경로에 사용할 날짜 문자열 (YYYYMMDD 형식).
-                                  지정하지 않으면 현재 날짜를 사용합니다.
+                                  지정하지 않으면 과거 날짜 (20000101) 를 사용합니다.
     """
-    if not os.path.exists(local_data_dir):
-        logger.error(f"로컬 데이터 디렉토리 '{local_data_dir}'가 존재하지 않습니다.")
+    if not os.path.exists(local_file_path):
+        logger.error(f"local data file '{local_file_path}' doesn't exist!!")
         return
 
     storage_client = storage.Client()
     try:
         bucket = storage_client.bucket(bucket_name)
     except Exception as e:
-        logger.error(f"버킷 '{bucket_name}'에 접근할 수 없습니다: {e}")
+        logger.error(f"bucket '{bucket_name}': can not access!! {e}")
         return
 
-    # 날짜 문자열이 제공되면 해당 문자열을 사용하고, 없으면 현재 날짜를 YYYYMMDD 형식으로 사용
-    if date_str:
-        # 날짜 문자열 형식 유효성 검사 (간단한 예시)
-        if not (len(date_str) == 8 and date_str.isdigit()):
-            logger.error(f"유효하지 않은 날짜 문자열 형식입니다: '{date_str}'. YYYYMMDD 형식이어야 합니다.")
-            return
-        upload_date = date_str
-    else:
-        upload_date = dt.datetime.now().strftime('%Y%m%d')
+    gcs_destination_path = f"{gcs_base_path}/{date_str}/"
 
-    gcs_destination_path = f"{gcs_base_path}/{upload_date}/"
+    logger.info(f"start upload '{local_file_path}' file to 'gs://{bucket_name}/{gcs_destination_path}'...")
+        
+    filename = os.path.basename(local_file_path)
+    blob_name = f"{gcs_destination_path}{filename}"
+    blob = bucket.blob(blob_name)
 
-    logger.info(f"JSON 파일을 '{local_data_dir}'에서 'gs://{bucket_name}/{gcs_destination_path}'(으)로 업로드 시작.")
-
-    for filename in os.listdir(local_data_dir):
-        if filename.endswith('.json'):
-            local_file_path = os.path.join(local_data_dir, filename)
-            blob_name = f"{gcs_destination_path}{filename}"
-            blob = bucket.blob(blob_name)
-
-            try:
-                blob.upload_from_filename(local_file_path)
-                logger.info(f"성공적으로 '{filename}'을(를) 'gs://{bucket_name}/{blob_name}'에 업로드했습니다.")
-            except Exception as e:
-                logger.error(f"'{filename}' 업로드 실패: {e}")
-        else:
-            logger.info(f"JSON 파일이 아닌 파일 건너뛰기: '{filename}'")
-
-if __name__ == "__main__":
+    try:
+        blob.upload_from_filename(local_file_path)
+        logger.info(f"finish to upload '{filename}' to 'gs://{bucket_name}/{blob_name}'!!!")
+    except Exception as e:
+        logger.error(f"'{filename}' upload fail!!! => {e}")
+        raise
+        
+            
+def local_test():
     # 테스트를 위해 'data' 디렉토리와 더미 JSON 파일 생성
     os.makedirs(f'{pjt_home_path}/data', exist_ok=True)
-    with open(f'{pjt_home_path}/data/test_news_1.json', 'w') as f:
+    
+    local_file_path_1 = f'{pjt_home_path}/data/test_news_1.json'
+    local_file_path_2 = f'{pjt_home_path}/data/test_news_2.json'
+    
+    with open(local_file_path_1, 'w') as f:
         f.write('{"title": "테스트 뉴스 1", "content": "이것은 테스트 기사입니다."}')
-    with open(f'{pjt_home_path}/data/test_news_2.json', 'w') as f:
+    with open(local_file_path_2, 'w') as f:
         f.write('{"title": "테스트 뉴스 2", "content": "또 다른 테스트 기사입니다."}')
 
-    # 현재 날짜로 업로드
-    logger.info("--- 현재 날짜로 업로드 시작 ---")
-    upload_json_files_to_gcs()
-    logger.info("--- 현재 날짜로 업로드 완료 ---")
-
-    print("\n") # 구분선 추가
-
-    # 특정 날짜로 업로드 (예: 2024년 1월 1일)
-    logger.info("--- 특정 날짜 (20240101)로 업로드 시작 ---")
-    upload_json_files_to_gcs(date_str='20240101')
-    logger.info("--- 특정 날짜 (20240101)로 업로드 완료 ---")
+    # 특정 날짜로 업로드 (예: 2020년 1월 1일)
+    logger.info("--- 특정 날짜 (20200101)로 업로드 시작 ---")
+    upload_local_file_to_gcs(local_file_path_1, date_str='20200101')
+    upload_local_file_to_gcs(local_file_path_2, date_str='20200101')
+    logger.info("--- 특정 날짜 (20200101)로 업로드 완료 ---")
 
     # 더미 파일 정리 (선택 사항)
     os.remove(f'{pjt_home_path}/data/test_news_1.json')
     os.remove(f'{pjt_home_path}/data/test_news_2.json')
     # os.rmdir('data')
+    
+def main(target_news_site: str, base_ymd: str):
+    """
+    articles.json 파일 GCS 업로드 메인 배치
+    :param str target_news_site: 뉴스 수집 사이트 이름 (zdnet, thelec)
+    :param str base_ymd: GCS 업로드 날짜 (yyyymmdd)
+    """
+    
+    local_data_dir=f'{pjt_home_path}/data'
+    try:
+        for filename in os.listdir(local_data_dir):
+            if filename.endswith('.json') and filename.startswith(target_news_site):
+                local_file_path = os.path.join(local_data_dir, filename)
+                upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
+            else:
+                logger.info(f"JSON 파일이 아닌 파일 건너뛰기: '{filename}'")
+    except Exception as e:
+        err_msg = traceback.format_exc()
+        logger.error(err_msg)
+        sys.exit(1)
+    
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser('articles.json 파일 GCS 업로드')
+    
+    # target_news_site 인자 추가
+    parser.add_argument(
+        "target_news_site",
+        type=str,        
+        default="zdnet",
+        choices=["zdnet", "thelec", ],
+        help="뉴스 수집 사이트 [%(choices)s] default=[%(default)s]",
+        metavar='target_news_site',
+        nargs='?'
+    )
+    
+    # base_ymd 인자 추가
+    parser.add_argument(
+        "base_ymd",
+        type=str,
+        default=dt.datetime.now(kst_timezone).strftime("%Y%m%d"), # 기본값은 현재 날짜
+        help="뉴스 수집 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
+        nargs='?'
+    )
+    
+    args = parser.parse_args()
+
+    # base_ymd 유효성 검증
+    try:
+        dt.datetime.strptime(args.base_ymd, "%Y%m%d")
+    except ValueError:
+        parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
+
+    # main(target_news_site=args.target_news_site, base_ymd=args.base_ymd)
+    local_test()
