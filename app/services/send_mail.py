@@ -91,6 +91,7 @@ def send_email_with_news(sender_email: str, sender_password: str, receiver_email
             h2 {{ color: #007bff; font-size: 1.2em; margin-top: 0; margin-bottom: 5px; }}
             p {{ margin-bottom: 5px; }}
             .date {{ font-size: 0.9em; color: #666; }}
+            .url {{ font-size: 0.9em; color: #007bff; text-decoration: none; display: block; margin-top: 5px; }}
             .summary {{ font-size: 1em; color: #555; }}
             ul {{ list-style: none; padding: 0; margin: 0; }}
             li {{ margin-bottom: 5px; }}
@@ -106,12 +107,20 @@ def send_email_with_news(sender_email: str, sender_password: str, receiver_email
         html_body += f"""
             <div class="news-item">
                 <h2>{news_item['title']}</h2>
-                <p class="date">{news_item['date']}</p>
+                <p class="date">{news_item['date']}</p>                
+        """
+        
+        # URL이 존재하는 경우에만 추가
+        if 'url' in news_item and news_item['url']:
+            html_body += f"""
+                <a href="{news_item['url']}" class="url" target="_blank" rel="noopener noreferrer">원문 보기</a>
+            """
+        
+        # 요약 내용을 줄바꿈 기준으로 리스트 아이템으로 변환하고, 선행하는 '*'와 공백을 제거
+        html_body += f"""
                 <div class="summary">
                     <ul>
         """
-        
-        # 요약 내용을 줄바꿈 기준으로 리스트 아이템으로 변환하고, 선행하는 '*'와 공백을 제거
         for line in news_item['summary'].split('\n'):
             if line.strip(): # 빈 줄은 제외
                 # Remove leading asterisk and any space after it
@@ -179,9 +188,9 @@ def load_news_from_json(file_path):
 
 if __name__ == "__main__":
     # 사용자 정보 설정 (실제 정보로 변경 필요)
-    SENDER_EMAIL = "login@naver.com"  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
-    SENDER_PASSWORD = ""   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
-    RECEIVER_EMAIL_LIST = ["login@naver.com"]  # 수신자 이메일 주소 (실제 수신자 이메일로 변경)
+    SENDER_EMAIL = "ggtt7@naver.com"  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
+    SENDER_PASSWORD = "CCRF8LS197CH"   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
+    RECEIVER_EMAIL_LIST = ["ggtt7@naver.com"]  # 수신자 이메일 주소 (실제 수신자 이메일로 변경)
     JSON_FILE_PATH = f"{pjt_home_path}/data/summarized_news.json"  # JSON 파일 경로
 
     # 뉴스 데이터 로드
