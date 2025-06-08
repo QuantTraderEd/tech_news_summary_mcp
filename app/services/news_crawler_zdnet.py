@@ -234,6 +234,7 @@ class NewsCrawler_ZDNet:
         # 기사 내용이 담긴 div/p 태그를 찾습니다. 실제 선택자로 변경 필요
         # ZDNet은 보통 'article_view_content' 같은 클래스를 사용합니다.
         content_div = soup.select_one('#articleBody')  # 실제 선택자로 변경 필요
+        if content_div is None: content_div = soup.find('div', class_='sub_view_cont')  # content 없는 경우 추가 탐색
 
         if content_div:
             # 불필요한 태그 제거 (예: 광고, 이미지 캡션, 기자 정보 등)
