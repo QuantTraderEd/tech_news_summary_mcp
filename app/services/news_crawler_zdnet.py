@@ -50,6 +50,8 @@ class NewsCrawler_ZDNet:
         """
         self.start_date = start_date
         self.end_date = end_date
+        logger.info(f"start_date=> {start_date}")
+        logger.info(f"end_date=> {end_date}")
         
     def _update_headers(self):
         """랜덤한 User-Agent를 사용하여 헤더를 업데이트합니다."""
@@ -284,11 +286,12 @@ class NewsCrawler_ZDNet:
                 f"Could not find article content with selector '#article_view_content' for {article_url}")
             return "기사 내용을 찾을 수 없습니다."
         
-
-
-# 로컬 테스트를 위한 예시 코드 (실제 네트워크 요청 발생)
-if __name__ == "__main__":
-    target_section = "반도체"
+def main(target_section: str, base_ymd: str):
+    """
+    zdnet 뉴스 수집 메인 배치 함수
+    :param str target_section: 뉴스 수집 대상 색션 (반도체, 자동차, 배터리)
+    :param str base_ymd: 뉴스 수집 기준 일자 (yyyymmdd), 뉴스 수집 기본 일자 범위는 [T-3, T]
+    """
     
     section_url_dict = {
        "반도체": "https://zdnet.co.kr/news/?lstcode=0050",  
@@ -306,7 +309,13 @@ if __name__ == "__main__":
     
     ZDNET_URL = section_url_dict[target_section]
     
+    end_date = dt.datetime.strptime(base_ymd, "%Y%m%d")
+    end_date = kst_timezone.localize(end_date)
+    start_date = end_date - dt.timedelta(days=3)
+    
     crawler = NewsCrawler_ZDNet(ZDNET_URL)
+    crawler.set_target_date_range(start_date, end_date)
+    
     try:
         logger.info(f"--- Fetching recent articles from {ZDNET_URL} ---")
         articles = crawler.fetch_articles()
@@ -326,7 +335,7 @@ if __name__ == "__main__":
         else:
             logger.warning("No recent articles found or an error occurred.")
             
-        
+        # 뉴스 데이터 json 파일로 저장 
         with open(f'{pjt_home_path}/data/zdnet_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
             json.dump(articles, f, ensure_ascii=False, indent=2)
         logger.info(f"Articles saved to zdnet_{target_section_en}_articles.json")
@@ -334,4 +343,43 @@ if __name__ == "__main__":
         
     except Exception as e:
         msg = traceback.format_exc()
-        logger.error(msg) 
+        logger.error(msg)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="zdnet 뉴스 수집 메인 배치 함수"
+    )
+
+    # target_section 인자 추가
+    parser.add_argument(
+        "target_section",
+        type=str,        
+        default="반도체",
+        choices=["반도체", "자동차", "배터리"],
+        help="뉴스 수집 대상 색션 [%(choices)s] default=[%(default)s]",
+        metavar='target_section',
+        nargs='?'
+    )
+
+    # base_ymd 인자 추가
+    parser.add_argument(
+        "base_ymd",
+        type=str,
+        default=dt.datetime.now(kst_timezone).strftime("%Y%m%d"), # 기본값은 현재 날짜
+        help="뉴스 수집 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
+        nargs='?'
+    )
+
+    args = parser.parse_args()
+
+    # base_ymd 유효성 검증
+    try:
+        dt.datetime.strptime(args.base_ymd, "%Y%m%d")
+    except ValueError:
+        parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
+
+    main(target_section=args.target_section, base_ymd=args.base_ymd)
