@@ -4,6 +4,8 @@ import logging
 import traceback
 import datetime as dt
 import re
+import json
+
 from typing import List, Dict
 
 import pytz
@@ -48,6 +50,8 @@ class ThelecNewsCrawler:
         """
         self.start_date = start_date
         self.end_date = end_date
+        logger.info(f"start_date=> {start_date}")
+        logger.info(f"end_date=> {end_date}")
 
     def _is_target_section(self, article_element) -> bool:
         """
@@ -483,10 +487,12 @@ class ThelecNewsCrawler:
             return f"파싱 오류: {e}"
 
 
-# 로컬 테스트를 위한 예시 코드
-if __name__ == "__main__":
-    
-    target_section = "반도체"
+def main(target_section: str, base_ymd: str):
+    """
+    thelect 뉴스 수집 메인 배치 함수
+    :param str target_section: 뉴스 수집 대상 색션 (반도체, 자동차, 배터리)
+    :param str base_ymd: 뉴스 수집 기준 일자 (yyyymmdd), 뉴스 수집 기본 일자 범위는 [T-3, T]
+    """
     
     section_url_dict = {
        "반도체": "https://www.thelec.kr/news/articleList.html?sc_section_code=S1N2&view_type=sm",
@@ -500,51 +506,83 @@ if __name__ == "__main__":
         "배터리": "battery",
     }
     
-    target_section_en = target_section_en_dict[target_section]
-    
-    THELEC_URL = section_url_dict[target_section]
-    
-    # 반도체 섹션만 크롤링하도록 설정
-    crawler = ThelecNewsCrawler(THELEC_URL, target_section=target_section)
-
-    logger.info(f"--- Fetching recent semiconductor articles from {THELEC_URL} ---")
-    articles = crawler.fetch_articles(pages=2)
-
-    if articles:
-        logger.info(f"Found {len(articles)} recent semiconductor articles.")
-        for i, article in enumerate(articles):
-            logger.info(f"\n--- Article {i + 1} ---")
-            logger.info(f"Title: {article['title']}")
-            logger.info(f"URL: {article['url']}")
-            logger.info(f"Published Date: {article['published_date']}")        
-            
-            content = crawler.fetch_article_content(article['url'])
-            logger.info(f"Content Snippet (first 300 chars): {content[:300]}...")
-            article['content'] = content
-            
-    else:
-        logger.warning("No recent semiconductor articles found or an error occurred.")
-
-    # test_article_url = "https://www.thelec.kr/news/articleView.html?idxno=36117"
-    # logger.info(f"\n--- Testing _get_published_date_from_article_page with: {test_article_url} ---")
-    # published_date = crawler._get_published_date_from_article_page(test_article_url)
-    # if published_date:
-    #     logger.info(f"Extracted Published Date from article page: {published_date.strftime('%Y-%m-%d %H:%M')}")
-    # else:
-    #     logger.warning(f"Failed to extract published date from: {test_article_url}")
-
-    # test_article_url_section = "https://www.thelec.kr/news/articleView.html?idxno=36493"
-    # logger.info(f"\n--- Testing _get_section_from_article_page with: {test_article_url_section} ---")
-    # extracted_section = crawler._get_section_from_article_page(test_article_url_section)
-    # if extracted_section:
-    #     logger.info(f"Extracted Section from article page: {extracted_section}")
-    # else:
-    #     logger.warning(f"Failed to extract section from: {test_article_url_section}")
-
     try:
-        import json
+        target_section_en = target_section_en_dict[target_section]
+        
+        THELEC_URL = section_url_dict[target_section]
+        
+        end_date = dt.datetime.strptime(base_ymd, "%Y%m%d")
+        end_date = kst_timezone.localize(end_date)
+        start_date = end_date - dt.timedelta(days=3)
+        
+        # 반도체 섹션만 크롤링하도록 설정
+        crawler = ThelecNewsCrawler(THELEC_URL, target_section=target_section)
+        crawler.set_target_date_range(start_date, end_date)
+
+        logger.info(f"--- Fetching recent semiconductor articles from {THELEC_URL} ---")
+        articles = crawler.fetch_articles(pages=2)
+
+        if articles:
+            logger.info(f"Found {len(articles)} recent semiconductor articles.")
+            for i, article in enumerate(articles):
+                logger.info(f"\n--- Article {i + 1} ---")
+                logger.info(f"Title: {article['title']}")
+                logger.info(f"URL: {article['url']}")
+                logger.info(f"Published Date: {article['published_date']}")        
+                
+                content = crawler.fetch_article_content(article['url'])
+                logger.info(f"Content Snippet (first 300 chars): {content[:300]}...")
+                article['content'] = content
+                
+        else:
+            logger.warning("No recent semiconductor articles found or an error occurred.")
+
+        
+        # 뉴스 데이터 json 파일로 저장    
         with open(f'{pjt_home_path}/data/thelec_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
             json.dump(articles, f, ensure_ascii=False, indent=2)
         logger.info(f"Articles saved to thelec_{target_section_en}_articles.json")
-    except ImportError:
-        logger.info("JSON module not available, skipping file save.")
+    
+    except Exception as e:
+        err_msg = traceback.format_exc()
+        logger.error(err_msg)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="thelec 뉴스 수집 메인 배치 함수"
+    )
+
+    # target_section 인자 추가
+    parser.add_argument(
+        "target_section",
+        type=str,        
+        default="반도체",
+        choices=["반도체", "자동차", "배터리"],
+        help="뉴스 수집 대상 색션 [%(choices)s] default=[%(default)s]",
+        metavar='target_section',
+        nargs='?'
+    )
+
+    # base_ymd 인자 추가
+    parser.add_argument(
+        "base_ymd",
+        type=str,
+        default=dt.datetime.now(kst_timezone).strftime("%Y%m%d"), # 기본값은 현재 날짜
+        help="뉴스 수집 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
+        nargs='?'
+    )
+
+    args = parser.parse_args()
+
+    # base_ymd 유효성 검증
+    try:
+        dt.datetime.strptime(args.base_ymd, "%Y%m%d")
+    except ValueError:
+        parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
+
+    main(target_section=args.target_section, base_ymd=args.base_ymd)
+    
