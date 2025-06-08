@@ -103,7 +103,7 @@ def main(target_news_site: str, base_ymd: str):
                 local_file_path = os.path.join(local_data_dir, filename)
                 upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
             else:
-                logger.info(f"JSON 파일이 아닌 파일 건너뛰기: '{filename}'")
+                logger.debug(f"skip target file...: '{filename}'")
     except Exception as e:
         err_msg = traceback.format_exc()
         logger.error(err_msg)
