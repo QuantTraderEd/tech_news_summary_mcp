@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import traceback
 import json
 
 import google.generativeai as genai
@@ -8,6 +9,8 @@ import google.generativeai as genai
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
+
+from app.services import gcs_upload_json
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
@@ -63,44 +66,67 @@ def summarize_news(news_item, num_sentences=3):
         logger.error(f"뉴스 ID {news_item.get('id', 'N/A')} 요약 중 오류 발생: {e}")
         return f"요약 실패: {e}"
 
-def main():
+def main(base_ymd: str):
     
     news_source_list = ['zdnet', 'thelec']
-    summarized_results = []    
+    summarized_results = []
     
-    for news_source in news_source_list:
-        logger.info(f"뉴스사이트: {news_source}")
-        json_file_path = f'{pjt_home_path}/data/{news_source}_semiconductor_articles.json' # 뉴스 데이터 JSON 파일 경로
-
-        try:
+    try:
+        for news_source in news_source_list:
+            logger.info(f"뉴스사이트: {news_source}")
+            json_file_path = f'{pjt_home_path}/data/{news_source}_semiconductor_articles.json' # 뉴스 데이터 JSON 파일 경로
+            
             with open(json_file_path, 'r', encoding='utf-8') as f:
-                news_data_list = json.load(f)
-        except FileNotFoundError:
-            logger.error(f"Error: '{json_file_path}' 파일을 찾을 수 없습니다.")
-            return
-        except json.JSONDecodeError:
-            logger.error(f"Error: '{json_file_path}' 파일이 유효한 JSON 형식이 아닙니다.")
-            return
+                news_data_list = json.load(f)        
 
-        logger.info(f"총 {len(news_data_list)}개의 뉴스 기사를 요약합니다.\n")
+            logger.info(f"총 {len(news_data_list)}개의 뉴스 기사를 요약합니다.\n")
+            
+            for news_item in news_data_list:
+                news_title = news_item.get('title', 'N/A')
+                logger.info(f"--- 뉴스 타이틀: {news_title} ---")
+                summary = summarize_news(news_item, num_sentences=3)
+                logger.info(f"요약:\n{summary}\n")
+
+                summarized_results.append({
+                    "title": news_title,
+                    "date": news_item.get('published_date', 'N/A'),            
+                    "summary": summary
+                })
+
+        # 요약된 결과를 새로운 JSON 파일로 저장
+        output_json_path = f'{pjt_home_path}/data/summarized_news.json'
+        with open(output_json_path, 'w', encoding='utf-8') as f:
+            json.dump(summarized_results, f, ensure_ascii=False, indent=2)
+        logger.info(f"\n모든 요약이 완료되었습니다. 결과는 '{output_json_path}'에 저장되었습니다.")
         
-        for news_item in news_data_list:
-            news_title = news_item.get('title', 'N/A')
-            logger.info(f"--- 뉴스 타이틀: {news_title} ---")
-            summary = summarize_news(news_item, num_sentences=3)
-            logger.info(f"요약:\n{summary}\n")
-
-            summarized_results.append({
-                "title": news_title,
-                "date": news_item.get('published_date', 'N/A'),            
-                "summary": summary
-            })
-
-    # 요약된 결과를 새로운 JSON 파일로 저장 (선택 사항)
-    output_json_path = f'{pjt_home_path}/data/summarized_news.json'
-    with open(output_json_path, 'w', encoding='utf-8') as f:
-        json.dump(summarized_results, f, ensure_ascii=False, indent=2)
-    logger.info(f"\n모든 요약이 완료되었습니다. 결과는 '{output_json_path}'에 저장되었습니다.")
+        # json 파일 GCS 에 업로드
+        gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_json_path,
+                                                date_str=base_ymd)
+    except Exception as e:
+        msg = traceback.format_exc()
+        logger.error(msg)
+        sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    
+    # base_ymd 인자 추가
+    parser.add_argument(
+        "base_ymd",
+        type=str,
+        default=dt.datetime.now(kst_timezone).strftime("%Y%m%d"), # 기본값은 현재 날짜
+        help="뉴스 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
+        nargs='?'
+    )
+    
+    args = parser.parse_args()
+    
+    # base_ymd 유효성 검증
+    try:
+        dt.datetime.strptime(args.base_ymd, "%Y%m%d")
+    except ValueError:
+        parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
+    
+    main(base_ymd=args.base_ymd)
