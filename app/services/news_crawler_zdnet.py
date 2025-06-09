@@ -311,7 +311,7 @@ def main(target_section: str, base_ymd: str):
     ZDNET_URL = section_url_dict[target_section]
     
     end_date = dt.datetime.strptime(base_ymd, "%Y%m%d")
-    end_date = kst_timezone.localize(end_date)
+    end_date = kst_timezone.localize(end_date) + dt.timedelta(hours=24)
     start_date = end_date - dt.timedelta(days=3)
     
     crawler = NewsCrawler_ZDNet(ZDNET_URL)
