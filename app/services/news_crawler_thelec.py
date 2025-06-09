@@ -515,11 +515,11 @@ def main(target_section: str, base_ymd: str):
         end_date = kst_timezone.localize(end_date)
         start_date = end_date - dt.timedelta(days=3)
         
-        # 반도체 섹션만 크롤링하도록 설정
+        # 타겟 섹션만 크롤링하도록 설정
         crawler = ThelecNewsCrawler(THELEC_URL, target_section=target_section)
         crawler.set_target_date_range(start_date, end_date)
 
-        logger.info(f"--- Fetching recent semiconductor articles from {THELEC_URL} ---")
+        logger.info(f"--- Fetching recent {target_section_en} articles from {THELEC_URL} ---")
         articles = crawler.fetch_articles(pages=2)
 
         if articles:
