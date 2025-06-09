@@ -185,11 +185,10 @@ def load_news_from_json(file_path):
         logger.error(f"오류: JSON 디코딩 오류 - {file_path}")
         return []
 
-
-if __name__ == "__main__":
+def main(pwd: str):
     # 사용자 정보 설정 (실제 정보로 변경 필요)
     SENDER_EMAIL = "ggtt7@naver.com"  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
-    SENDER_PASSWORD = "CCRF8LS197CH"   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
+    SENDER_PASSWORD = pwd + 'CH'   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
     RECEIVER_EMAIL_LIST = ["ggtt7@naver.com"]  # 수신자 이메일 주소 (실제 수신자 이메일로 변경)
     JSON_FILE_PATH = f"{pjt_home_path}/data/summarized_news.json"  # JSON 파일 경로
 
@@ -202,3 +201,16 @@ if __name__ == "__main__":
         # send_mail(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, 'test', 'text')
     else:
         logger.warning("발송할 뉴스 데이터가 없습니다.")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("pwd",
+                        type=str,
+                        default="",
+                        nargs='?')
+
+    args = parser.parse_args()
+    main(args.pwd)
