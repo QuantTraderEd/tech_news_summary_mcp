@@ -21,3 +21,5 @@ echo 'finish upload!!'
 
 # news summary
 python3 app/services/news_summarizer.py
+
+
