@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import traceback
 import json
 import smtplib
 
@@ -180,10 +181,14 @@ def load_news_from_json(file_path):
         return news_data
     except FileNotFoundError:
         logger.error(f"오류: 파일을 찾을 수 없습니다 - {file_path}")
-        return []
+        raise
     except json.JSONDecodeError:
         logger.error(f"오류: JSON 디코딩 오류 - {file_path}")
-        return []
+        raise
+    except Exception as e:
+        msg = traceback.format_exc()
+        logger.error(msg)
+        raise
 
 def main(pwd: str):
     # 사용자 정보 설정 (실제 정보로 변경 필요)
@@ -192,15 +197,20 @@ def main(pwd: str):
     RECEIVER_EMAIL_LIST = ["ggtt7@naver.com"]  # 수신자 이메일 주소 (실제 수신자 이메일로 변경)
     JSON_FILE_PATH = f"{pjt_home_path}/data/summarized_news.json"  # JSON 파일 경로
 
-    # 뉴스 데이터 로드
-    news_articles = load_news_from_json(JSON_FILE_PATH)
+    try:
+        # 뉴스 데이터 로드
+        news_articles = load_news_from_json(JSON_FILE_PATH)
 
-    if news_articles:
-        # 이메일 발송
-        send_email_with_news(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, news_articles)
-        # send_mail(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, 'test', 'text')
-    else:
-        logger.warning("발송할 뉴스 데이터가 없습니다.")
+        if news_articles:
+            # 이메일 발송
+            send_email_with_news(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, news_articles)
+            # send_mail(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, 'test', 'text')
+        else:
+            logger.warning("발송할 뉴스 데이터가 없습니다.")
+    except Exception as e:
+        msg = traceback.format_exc()
+        logger.error(msg)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
