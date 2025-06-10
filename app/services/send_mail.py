@@ -196,6 +196,10 @@ def main(pwd: str):
     SENDER_PASSWORD = pwd + 'CH'   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
     RECEIVER_EMAIL_LIST = ["ggtt7@naver.com"]  # 수신자 이메일 주소 (실제 수신자 이메일로 변경)
     JSON_FILE_PATH = f"{pjt_home_path}/data/summarized_news.json"  # JSON 파일 경로
+    
+    if pwd == "":
+        logger.error("pwd is empty!!")
+        sys.exit(1)
 
     try:
         # 뉴스 데이터 로드
@@ -219,7 +223,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("pwd",
                         type=str,
-                        required=True,
                         default="",
                         nargs='?')
 
