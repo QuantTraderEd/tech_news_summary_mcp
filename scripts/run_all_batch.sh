@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# generate_config.sh 실행
+echo "Executing generate_config.sh..."
+. $PWD/scripts/generate_config.sh
+
 # start_batch.sh 실행
 echo "Executing start_batch.sh..."
 . $PWD/scripts/start_batch.sh
