@@ -1,11 +1,11 @@
 .idea
 .env
+.pytest_cache
 venv
-data
+data/*.json
 
 # python
 __pycache__
-
 
 config.json
 docker_cmd
