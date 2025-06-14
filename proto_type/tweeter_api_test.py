@@ -46,13 +46,14 @@ user_info_url = f"https://api.twitter.com/2/users/by?{usernames}&{user_fields}"
 user_id = '833295407182516224'   # raywang
 user_tweets_url = f"https://api.twitter.com/2/users/{user_id}/tweets"
 
-target_params = {
-    "tweet.fields": "created_at",
+params = {
+    "tweet.fields": "text, created_at,lang,referenced_tweets,public_metrics",  # 트윗 필드
     "max_results": 100,  #  갯수 설정 가능!!  Required range: 5 <= x <= 100
     "exclude": ["retweets"],
+    "expansions": "referenced_tweets.id",  # 확장 필드 (리트윗/답글 등 포함)
 }
 
-response = requests.request("GET", user_tweets_url, auth=bearer_oauth, params=target_params)
+response = requests.request("GET", user_tweets_url, auth=bearer_oauth, params=params)
 print(response.status_code)
 
 json_response =  response.json()
