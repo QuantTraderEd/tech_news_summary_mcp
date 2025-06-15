@@ -6,6 +6,7 @@ echo 'start news scrapping...'
 python3 $PWD/app/services/news_crawler_zdnet.py 반도체 &&
 python3 $PWD/app/services/news_crawler_zdnet.py 자동차 &&
 python3 $PWD/app/services/news_crawler_zdnet.py 배터리 &&
+python3 $PWD/app/services/news_crawler_zdnet.py 컴퓨팅 &&
 
 python3 $PWD/app/services/news_crawler_thelec.py 반도체 &&
 python3 $PWD/app/services/news_crawler_thelec.py 자동차 &&
