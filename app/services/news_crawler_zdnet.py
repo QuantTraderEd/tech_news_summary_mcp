@@ -290,20 +290,24 @@ class NewsCrawler_ZDNet:
 def main(target_section: str, base_ymd: str):
     """
     zdnet 뉴스 수집 메인 배치 함수
-    :param str target_section: 뉴스 수집 대상 색션 (반도체, 자동차, 배터리)
+    :param str target_section: 뉴스 수집 대상 색션 (반도체, 자동차, 배터리, 인공지능, 컴퓨팅)
     :param str base_ymd: 뉴스 수집 기준 일자 (yyyymmdd), 뉴스 수집 기본 일자 범위는 [T-3, T]
     """
     
     section_url_dict = {
-       "반도체": "https://zdnet.co.kr/news/?lstcode=0050",  
-       "자동차": "https://zdnet.co.kr/news/?lstcode=0057&page=1",
-       "배터리": "https://zdnet.co.kr/newskey/?lstcode=%EB%B0%B0%ED%84%B0%EB%A6%AC",  
+        "반도체": "https://zdnet.co.kr/news/?lstcode=0050",
+        "자동차": "https://zdnet.co.kr/news/?lstcode=0057&page=1",
+        "배터리": "https://zdnet.co.kr/newskey/?lstcode=%EB%B0%B0%ED%84%B0%EB%A6%AC",
+        "인공지능": "https://zdnet.co.kr/newskey/?lstcode=%EC%9D%B8%EA%B3%B5%EC%A7%80%EB%8A%A5",
+        "컴퓨팅": "https://zdnet.co.kr/news/?lstcode=0020&page=1",
     }
     
     target_section_en_dict = {
         "반도체": "semiconductor",
         "자동차": "automotive",
         "배터리": "battery",
+        "인공지능": "ai",
+        "컴퓨팅": "computing",
     }
     
     target_section_en = target_section_en_dict[target_section]
@@ -360,7 +364,7 @@ if __name__ == "__main__":
         "target_section",
         type=str,        
         default="반도체",
-        choices=["반도체", "자동차", "배터리"],
+        choices=["반도체", "자동차", "배터리", "인공지능", "컴퓨팅"],
         help="뉴스 수집 대상 색션 [%(choices)s] default=[%(default)s]",
         metavar='target_section',
         nargs='?'
