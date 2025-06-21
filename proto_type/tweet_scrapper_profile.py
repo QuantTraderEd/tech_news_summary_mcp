@@ -15,7 +15,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 # --- 설정 ---
 # 조회하고 싶은 트위터 사용자의 아이디를 여기에 입력하세요.
-TARGET_USERNAME = "rwang07"
+TARGET_USERNAME = "The_AI_Investor"  # rwang07, wallstengine
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
 # 설정 파일 이름
@@ -167,15 +167,50 @@ def main(username):
                     if post_url in processed_post_urls:
                         continue
 
-                    # 시간 정보 추출
+                    # 기본 정보 추출
                     timestamp = link_element.find_element(By.TAG_NAME, "time").get_attribute('datetime')
-
-                    # 게시글 텍스트 추출
                     post_text_element = article.find_element(By.XPATH, ".//div[@data-testid='tweetText']")
                     post_text = post_text_element.text
+                    post_id = post_url.split('/')[-1]
+
+                    # 긴 글 처리 로직
+                    # 게시글 내부에 'Show more' 또는 '더 보기' 텍스트가 있는지 확인
+                    is_long_post = False
+                    try:
+                        # 영어(Show more) 또는 한국어(더 보기) 텍스트를 가진 요소를 찾습니다.
+                        article.find_element(By.XPATH, ".//span[text()='Show more' or text()='더 보기']")
+                        is_long_post = True
+                    except NoSuchElementException:
+                        # 해당 요소가 없으면 긴 글이 아닌 것으로 간주합니다.
+                        pass
+
+                    if is_long_post:
+                        print(f"긴 글을 발견했습니다 ('Show more'/'더 보기' 감지). 전체 텍스트를 가져옵니다: {post_url}")
+                        original_window = driver.current_window_handle
+
+                        try:
+                            # 새 탭에서 게시글 URL 열기
+                            driver.switch_to.new_window('tab')
+                            driver.get(post_url)
+
+                            # 상세 페이지의 메인 트윗을 명확하게 타겟팅하여 전체 텍스트 로딩 대기
+                            full_text_xpath = "//article[@data-testid='tweet' and @tabindex='-1']//div[@data-testid='tweetText']"
+                            full_text_element = wait.until(EC.presence_of_element_located((By.XPATH, full_text_xpath)))
+
+                            time.sleep(3)
+
+                            # 전체 텍스트 추출 후, 기존 post_text 변수를 덮어쓰기
+                            post_text = full_text_element.text
+                            print(" -> 전체 텍스트를 성공적으로 가져왔습니다.")
+
+                        except Exception as e:
+                            print(f" -> 전체 텍스트를 가져오는 중 오류 발생: {e}. 타임라인의 일부 텍스트를 사용합니다.")
+                        finally:
+                            # 새 탭 닫고 원래 탭으로 돌아오기
+                            driver.close()
+                            driver.switch_to.window(original_window)
 
                     # 수집한 정보를 딕셔너리로 묶어 리스트에 추가
-                    post_id = post_url.split('/')[-1]
                     post_data = {
                         'url': post_url,
                         'id': post_id,
