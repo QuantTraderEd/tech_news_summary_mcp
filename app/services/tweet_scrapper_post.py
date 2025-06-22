@@ -65,7 +65,10 @@ class TweetScraper:
         service = Service(ChromeDriverManager().install())
         options = webdriver.ChromeOptions()
         options = webdriver.ChromeOptions()
-        # options.add_argument("--headless") # 브라우저를 숨기고 싶을 때 주석 해제
+        options.add_argument("--headless") # 브라우저를 숨기고 싶을 때 주석 해제
+        options.add_argument("--no-sandbox") # Sandbox 프로세스 사용 안함: Docker 컨테이너와 같은 제한된 환경에서 필요
+        options.add_argument("--disable-dev-shm-usage") # /dev/shm 파티션 사용 안함: 일부 Docker 환경에서 메모리 부족 오류 방지
+        options.add_argument("--disable-gpu") # GPU 가속 비활성화
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
