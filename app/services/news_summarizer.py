@@ -74,13 +74,15 @@ def summarize_news(news_item, num_sentences=3):
 
 def main(base_ymd: str):
     
-    news_source_list = ['zdnet', 'thelec']
+    news_source_list = ['zdnet_semiconductor',
+                        'zdnet_computing',
+                        'thelec_semiconductor']
     summarized_results = []
     
     try:
         for news_source in news_source_list:
             logger.info(f"뉴스사이트: {news_source}")
-            json_file_path = f'{pjt_home_path}/data/{news_source}_semiconductor_articles.json' # 뉴스 데이터 JSON 파일 경로
+            json_file_path = f'{pjt_home_path}/data/{news_source}_articles.json' # 뉴스 데이터 JSON 파일 경로
             
             with open(json_file_path, 'r', encoding='utf-8') as f:
                 news_data_list = json.load(f)        
