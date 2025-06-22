@@ -78,7 +78,7 @@ class TweetScraper:
         self.wait = WebDriverWait(self.driver, 15)
 
     # --- 로그인 함수 ---
-    def login_to_twitter(self, username: str, password: str):
+    def login_to_twitter(self, username: str, password: str, verification_info: str):
         """
         제공된 정보로 X(트위터)에 로그인합니다.
         """
@@ -94,9 +94,55 @@ class TweetScraper:
             next_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
             next_button.click()
             logger.info("사용자 이름 입력 완료.")
+            time.sleep(1)
+
+            # [수정됨] 사용자 이름 확인 / 전화번호,이메일 인증 / 비밀번호 입력의 동적 단계를 처리
+            try:
+                # 다음 단계가 무엇인지 확인: 비밀번호 필드 또는 다른 입력 필드
+                next_input_xpath = "//input[@name='password'] | //input[@name='text']"
+                next_input_element = self.wait.until(EC.presence_of_element_located((By.XPATH, next_input_xpath)))
+                
+                element_name = next_input_element.get_attribute("name")
+
+                if element_name == 'password':
+                    # 시나리오 1: 바로 비밀번호 입력 단계로 넘어간 경우
+                    logger.info("비밀번호 입력 단계로 바로 진행합니다.")
+                    password_input = next_input_element
+                
+                else: # element_name == 'text'
+                    # 시나리오 2 또는 3: 사용자 이름 재확인 또는 전화/이메일 인증 단계
+                    page_text = self.driver.find_element(By.TAG_NAME, 'body').text
+                    if "unusual login activity" in page_text or "phone number or email" in page_text:
+                        # 시나리오 3: 비정상 로그인 활동으로 인한 추가 인증
+                        logger.warning("비정상 로그인 활동 감지. 전화번호/이메일 인증을 시도합니다.")
+                        if not verification_info:
+                            logger.error("config.json에 'verification_info'가 필요하지만 설정되지 않았습니다.")
+                            return False
+                        next_input_element.send_keys(verification_info)
+                        self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
+                        logger.info(f"인증 정보(verification_info) 입력 완료!!!")
+                    else:
+                        # 시나리오 2: 단순 사용자 이름 재확인
+                        logger.info("사용자 이름 재확인 단계를 진행합니다.")
+                        next_input_element.send_keys(username)
+                        self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
+                        logger.info("사용자 이름 재입력 완료.")
+
+                    # 위 단계를 거친 후, 최종적으로 비밀번호 입력창을 기다림
+                    logger.info("비밀번호 필드를 기다립니다...")
+                    password_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='password']")))
+
+            except TimeoutException:
+                logger.error("로그인 다음 단계의 입력 필드를 찾을 수 없습니다. CAPTCHA 또는 예상치 못한 페이지일 수 있습니다.")
+                error_page_filename = "login_error_page.html"
+                with open(error_page_filename, "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+                logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
+                return False
+            
 
             # 2. 비밀번호 입력
-            password_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='password']")))
+            logger.info("비밀번호 입력 필드를 찾았습니다.")
             password_input.send_keys(password)
 
             # '로그인' 버튼 클릭
@@ -290,6 +336,7 @@ def main(base_ymd: str):
                 config = json.load(f)
             login_username = config['tweet_username']
             login_password = config['tweet_password']
+            verification_info = config['verification_info']
         except FileNotFoundError:
             logger.error(f"오류: 설정 파일({CONFIG_FILE})을 찾을 수 없습니다.")
             sys.exit(1)  # 프로그램 종료
@@ -302,7 +349,7 @@ def main(base_ymd: str):
         tweet_scraper.set_target_date_range(start_date, end_date)
         tweet_scraper.set_webdriver()
 
-        if not tweet_scraper.login_to_twitter(login_username, login_password):
+        if not tweet_scraper.login_to_twitter(login_username, login_password, verification_info):
             raise Exception("로그인에 실패하여 스크립트를 중단합니다.")
 
         # --- 지정된 모든 사용자에 대해 스크래핑 실행 ---
