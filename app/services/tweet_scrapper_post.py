@@ -341,7 +341,7 @@ def main(base_ymd: str):
             logger.error(f"오류: 설정 파일({CONFIG_FILE})을 찾을 수 없습니다.")
             sys.exit(1)  # 프로그램 종료
         except KeyError:
-            logger.error(f"오류: {CONFIG_FILE}에 'username' 또는 'password' 키가 없습니다.")
+            logger.error(f"오류: {CONFIG_FILE}에 'username' 또는 'password' 또는 'verification_info' 키가 없습니다.")
             sys.exit(1)  # 프로그램 종료
 
         # scraper 설정
