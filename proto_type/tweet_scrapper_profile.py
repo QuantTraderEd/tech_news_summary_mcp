@@ -222,7 +222,14 @@ def main():
         print("웹 드라이버를 설정합니다...")
         service = Service(ChromeDriverManager().install())
         options = webdriver.ChromeOptions()
-        # options.add_argument("--headless")
+        options = webdriver.ChromeOptions()
+        # options.add_argument("--headless") # 브라우저를 숨기고 싶을 때 주석 해제
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        options.add_argument(
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        driver = webdriver.Chrome(service=service, options=options)
         driver = webdriver.Chrome(service=service, options=options)
         wait = WebDriverWait(driver, 15)
 
