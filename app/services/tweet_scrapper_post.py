@@ -196,7 +196,7 @@ def scrape_user_post(driver, wait, target_username):
             logger.info("-" * 20)
 
         logger.info(f"[{target_username}] 님으로부터 총 {len(posts_list)}개의 게시글을 수집했습니다.")
-        output_filename = f"{target_username}_posts.json"
+        output_filename = f"{pjt_home_path}/data/{target_username}_posts.json"
         data_to_save = {"data": posts_list}
         # JSON 파일로 저장하는 부분
         try:
