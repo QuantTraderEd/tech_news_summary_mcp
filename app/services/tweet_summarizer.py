@@ -114,9 +114,12 @@ def process_posts(input_filename: str, summarized_posts: list):
         text_len = len(original_text)
 
         if text_len >= 250:
-            logger.info(f"  - 내용 길이({text_len}) >= 250. 번역 및 요약을 진행합니다.")
+            logger.info(f"  - 내용 길이({text_len}) >= 250. 번역 및 타이틀 & 요약을 생성 진행합니다.")
             translation_prompt = f"Translate the following English text to Korean:\n\n---\n{original_text}\n---"
             post['translated_text'] = call_gemini_api(translation_prompt)
+                        
+            title_prompt = f"Create a concise and representative title in Korean for the following English text. Provide only the title text without any quotation marks or extra words.\n\n---\n{original_text}\n---"
+            post['title'] = call_gemini_api(title_prompt)
             
             summary_prompt = f"Summarize the following English text into a 3-point bullet list in Korean:\n\n---\n{original_text}\n---"
             post['summary'] = call_gemini_api(summary_prompt)
@@ -152,13 +155,13 @@ def main(base_ymd: str):
             input_filename = os.path.join(pjt_home_path, 'data', f'{tweet_user}_posts.json')
         
             process_posts(input_filename, summarized_posts)
-            
+        
         output_data = {'data': summarized_posts}
         
         output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
 
         with open(output_filename, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, ensure_ascii=False, indent=4)
+            json.dump(summarized_posts, f, ensure_ascii=False, indent=4)
 
         logger.info(f"✅ 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
         logger.info("="*50)
