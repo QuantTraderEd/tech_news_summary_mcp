@@ -36,7 +36,7 @@ kst_timezone = pytz.timezone('Asia/Seoul')
 
 # --- 설정 ---
 # 조회하고 싶은 트위터 사용자 아이디 목록을 리스트로 입력하세요.
-TARGET_USERNAMES = ["rwang07", "The_AI_Investor", "wallstengine"]
+TARGET_USERNAMES = ["rwang07", "MooreMorrisSemi", "The_AI_Investor", "wallstengine"]
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
 # 설정 파일 이름
@@ -334,9 +334,9 @@ def main(base_ymd: str):
         try:
             with open(CONFIG_FILE, 'r') as f:
                 config = json.load(f)
-            login_username = config['tweet_username']
-            login_password = config['tweet_password']
-            verification_info = config['verification_info']
+            login_username = config['TWEET_USERNAME']
+            login_password = config['TWEET_PASSWORD']
+            verification_info = config['VERIFICATION_INFO']
         except FileNotFoundError:
             logger.error(f"오류: 설정 파일({CONFIG_FILE})을 찾을 수 없습니다.")
             sys.exit(1)  # 프로그램 종료
