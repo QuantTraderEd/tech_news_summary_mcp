@@ -16,6 +16,8 @@ pjt_home_path = os.path.abspath(pjt_home_path)
 
 site.addsitedir(pjt_home_path)
 
+from app.services import gcs_upload_json
+
 # 로깅 설정
 logger = logging.getLogger(__file__)
 formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(filename)s %(lineno)d: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -140,6 +142,7 @@ def main(base_ymd: str):
     
     tweet_source_list = [
         'rwang07',
+        'MooreMorrisSemi',
         'The_AI_Investor',
         'wallstengine',
     ]
@@ -159,6 +162,10 @@ def main(base_ymd: str):
 
         logger.info(f"✅ 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
         logger.info("="*50)
+        
+        # json 파일 GCS 에 업로드
+        gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
+                                                date_str=base_ymd)
         
     except Exception as e:
         msg = traceback.format_exc()
