@@ -36,7 +36,13 @@ kst_timezone = pytz.timezone('Asia/Seoul')
 
 # --- 설정 ---
 # 조회하고 싶은 트위터 사용자 아이디 목록을 리스트로 입력하세요.
-TARGET_USERNAMES = ["rwang07", "MooreMorrisSemi", "The_AI_Investor", "wallstengine"]
+TARGET_USERNAMES = ["rwang07",
+                    "MooreMorrisSemi",
+                    "dnystedt",
+                    "SKundojjala",
+                    "SemiAnalysis_",
+                    "The_AI_Investor",
+                    "wallstengine"]
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
 # 설정 파일 이름
