@@ -47,7 +47,7 @@ def create_email_body(posts_data):
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>최신 반도체/테크 Tweet 요약</title>
+        <title>최신 반도체/AI/테크 Tweet 요약</title>
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -121,7 +121,7 @@ def create_email_body(posts_data):
     </head>
     <body>
         <div class="container">
-            <h2>최신 반도체/테크 Tweet 요약</h2>
+            <h2>최신 반도체/AI/테크 Tweet 요약</h2>
     """
 
     # --- 각 게시물 데이터를 처리하는 루프 (수정된 로직 적용) ---
@@ -251,7 +251,7 @@ def main(pwd: str):
             # 이메일 본문 생성
             email_body_html = create_email_body(summarized_posts)
             # 이메일 발송
-            mail_subject = '=== 일일 테크 Tweet 요약 ===' # 메일 제목 정의
+            mail_subject = '=== 최신 반도체/AI/테크 Tweet 요약 ===' # 메일 제목 정의
             send_email_with_tweet(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, mail_subject, email_body_html)
             
         else:
