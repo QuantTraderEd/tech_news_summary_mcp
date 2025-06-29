@@ -16,7 +16,7 @@ pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
-from app.services.news_crawler_zdnet import NewsCrawler_ZDNet, main as zdnet_main
+from src.services.news_crawler_zdnet import NewsCrawler_ZDNet, main as zdnet_main
 
 # Constants
 BASE_URL = "https://zdnet.co.kr/news/?lstcode=0050"
@@ -27,7 +27,7 @@ KST = pytz.timezone('Asia/Seoul')
 @pytest.fixture
 def mock_user_agent(mocker):
     """Fixture to mock UserAgent."""
-    mock = mocker.patch('app.services.news_crawler_zdnet.UserAgent')
+    mock = mocker.patch('src.services.news_crawler_zdnet.UserAgent')
     mock.return_value.random = 'test-user-agent'
     return mock
 
@@ -72,7 +72,7 @@ def test_parse_date_from_link(crawler):
     invalid_link = "/news/article.html?id=123"
     assert crawler._parse_date_from_link(invalid_link) == dt.datetime.min
 
-@patch('app.services.news_crawler_zdnet.requests.get')
+@patch('src.services.news_crawler_zdnet.requests.get')
 def test_fetch_articles(mock_get, crawler):
     """Test fetching and filtering articles from a list page."""
     # Mock HTML for the article list page
@@ -116,7 +116,7 @@ def test_fetch_articles(mock_get, crawler):
     assert articles[2]['title'] == "Top News In Range"
     assert all('https://zdnet.co.kr' in a['url'] for a in articles)
 
-@patch('app.services.news_crawler_zdnet.requests.get')
+@patch('src.services.news_crawler_zdnet.requests.get')
 def test_fetch_article_content(mock_get, crawler):
     """Test fetching and cleaning individual article content."""
     mock_html = """
@@ -145,7 +145,7 @@ def test_fetch_article_content(mock_get, crawler):
     assert "removed" not in content
     assert "관련기사" not in content
 
-@patch('app.services.news_crawler_zdnet.requests.get')
+@patch('src.services.news_crawler_zdnet.requests.get')
 def test_fetch_article_content_not_found(mock_get, crawler):
     """Test handling for when article content container is not found."""
     mock_html = "<html><body><p>No article body here.</p></body></html>"
@@ -159,9 +159,9 @@ def test_fetch_article_content_not_found(mock_get, crawler):
 
 # --- Test Cases for main Function ---
 
-@patch('app.services.news_crawler_zdnet.NewsCrawler_ZDNet')
-@patch('app.services.news_crawler_zdnet.open', new_callable=mock_open)
-@patch('app.services.news_crawler_zdnet.json.dump')
+@patch('src.services.news_crawler_zdnet.NewsCrawler_ZDNet')
+@patch('src.services.news_crawler_zdnet.open', new_callable=mock_open)
+@patch('src.services.news_crawler_zdnet.json.dump')
 def test_main_success(mock_json_dump, mock_file_open, MockCrawler, mock_user_agent):
     """Test the main function's success path."""
     # Mock crawler instance and its methods
@@ -189,7 +189,7 @@ def test_main_success(mock_json_dump, mock_file_open, MockCrawler, mock_user_age
     expected_data = [{'title': 'Test Article', 'url': 'http://fake.url', 'published_date': '2024-01-01', 'content': 'Full article content.'}]
     mock_json_dump.assert_called_once_with(expected_data, mock_file_open(), ensure_ascii=False, indent=2)
 
-@patch('app.services.news_crawler_zdnet.NewsCrawler_ZDNet')
+@patch('src.services.news_crawler_zdnet.NewsCrawler_ZDNet')
 @patch('sys.exit')
 def test_main_exception(mock_exit, MockCrawler, mock_user_agent):
     """Test the main function's exception handling."""

@@ -8,9 +8,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 # from pydantic import BaseModel
 # from typing import List
-# from app.services.news_crawler import NewsCrawler
-# from app.services.summarizer import NewsSummarizer
-# from app.services.email_sender import EmailSender
+# from src.services.news_crawler import NewsCrawler
+# from src.services.summarizer import NewsSummarizer
+# from src.services.email_sender import EmailSender
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)

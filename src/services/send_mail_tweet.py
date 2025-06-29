@@ -21,7 +21,7 @@ pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
-from app.services import send_mail
+from src.services import send_mail
 
 # 로깅 설정
 logger = logging.getLogger(__file__)

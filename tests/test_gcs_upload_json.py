@@ -11,7 +11,7 @@ pjt_home_path = os.path.abspath(pjt_home_path)
 
 site.addsitedir(pjt_home_path)
 
-from app.services import gcs_upload_json
+from src.services import gcs_upload_json
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
@@ -203,7 +203,7 @@ def mock_main_dependencies(mocker):
     main 함수에 필요한 의존성(os.listdir, upload_local_file_to_gcs, sys.exit)을 목(mock) 처리합니다.
     """
     mock_listdir = mocker.patch('os.listdir')
-    mock_upload = mocker.patch('app.services.gcs_upload_json.upload_local_file_to_gcs')
+    mock_upload = mocker.patch('src.services.gcs_upload_json.upload_local_file_to_gcs')
     mock_exit = mocker.patch('sys.exit')
     return mock_listdir, mock_upload, mock_exit
 

@@ -1,5 +1,6 @@
 import os
 import sys
+import site
 import json
 import re
 import pytest
@@ -16,7 +17,7 @@ pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
-from app.services.news_crawler_thelec import ThelecNewsCrawler, main as thelec_main
+from src.services.news_crawler_thelec import ThelecNewsCrawler, main as thelec_main
 
 # Constants
 BASE_URL = "https://www.thelec.kr/news/articleList.html?sc_section_code=S1N2"
@@ -28,7 +29,7 @@ KST = pytz.timezone('Asia/Seoul')
 @pytest.fixture
 def mock_user_agent(mocker):
     """Fixture to mock UserAgent."""
-    mock = mocker.patch('app.services.news_crawler_thelec.UserAgent')
+    mock = mocker.patch('src.services.news_crawler_thelec.UserAgent')
     mock.return_value.random = 'test-user-agent'
     return mock
 
@@ -69,7 +70,7 @@ def test_is_target_section(crawler):
     element_no_section_tag = BeautifulSoup(html_no_section_tag, 'html.parser').div
     assert crawler._is_target_section(element_no_section_tag) is False
 
-@patch('app.services.news_crawler_thelec.requests.get')
+@patch('src.services.news_crawler_thelec.requests.get')
 def test_get_published_date_from_article_page(mock_get, crawler):
     """Test extracting the published date from a single article page."""
     mock_html = """
@@ -89,7 +90,7 @@ def test_get_published_date_from_article_page(mock_get, crawler):
     
     assert result_date == expected_date
 
-@patch('app.services.news_crawler_thelec.requests.get')
+@patch('src.services.news_crawler_thelec.requests.get')
 def test_get_section_from_article_page(mock_get, crawler):
     """Test extracting the section from a single article page's meta tag."""
     mock_html = """
@@ -105,7 +106,7 @@ def test_get_section_from_article_page(mock_get, crawler):
     section = crawler._get_section_from_article_page("http://fake.url/article")
     assert section == "반도체"
 
-@patch('app.services.news_crawler_thelec.requests.get')
+@patch('src.services.news_crawler_thelec.requests.get')
 def test_fetch_articles_integration(mock_get, crawler):
     """
     Test the fetch_articles method, integrating the section and date filtering logic.
@@ -149,7 +150,7 @@ def test_fetch_articles_integration(mock_get, crawler):
     assert articles[0]['title'] == "Article 1 (Semiconductor, In Date)"
     assert articles[0]['url'] == "https://www.thelec.kr/news/articleView.html?idxno=1"
 
-@patch('app.services.news_crawler_thelec.requests.get')
+@patch('src.services.news_crawler_thelec.requests.get')
 def test_fetch_article_content(mock_get, crawler):
     """Test fetching and cleaning individual article content."""
     mock_html = """
@@ -177,9 +178,9 @@ def test_fetch_article_content(mock_get, crawler):
 
 # --- Test Cases for main Function ---
 
-@patch('app.services.news_crawler_thelec.ThelecNewsCrawler')
-@patch('app.services.news_crawler_thelec.open', new_callable=mock_open)
-@patch('app.services.news_crawler_thelec.json.dump')
+@patch('src.services.news_crawler_thelec.ThelecNewsCrawler')
+@patch('src.services.news_crawler_thelec.open', new_callable=mock_open)
+@patch('src.services.news_crawler_thelec.json.dump')
 def test_main_success(mock_json_dump, mock_file_open, MockCrawler, mock_user_agent):
     """Test the main function's success path."""
     mock_crawler_instance = MagicMock()
@@ -205,7 +206,7 @@ def test_main_success(mock_json_dump, mock_file_open, MockCrawler, mock_user_age
     expected_data = [{'title': 'Test Article', 'url': 'http://fake.url', 'published_date': '2024-01-01', 'content': 'Full article content.'}]
     mock_json_dump.assert_called_once_with(expected_data, mock_file_open(), ensure_ascii=False, indent=2)
 
-@patch('app.services.news_crawler_thelec.ThelecNewsCrawler')
+@patch('src.services.news_crawler_thelec.ThelecNewsCrawler')
 @patch('sys.exit')
 def test_main_exception(mock_exit, MockCrawler, mock_user_agent):
     """Test the main function's exception handling."""

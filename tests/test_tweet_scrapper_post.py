@@ -14,14 +14,14 @@ pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
-from app.services.tweet_scrapper_post import TweetScraper
+from src.services.tweet_scrapper_post import TweetScraper
 
 
 @pytest.fixture
 def scraper():
     """Pytest fixture to create a TweetScraper instance with mocked dependencies."""
-    with patch('app.services.tweet_scrapper_post.ChromeDriverManager'), \
-         patch('app.services.tweet_scrapper_post.webdriver.Chrome'):
+    with patch('src.services.tweet_scrapper_post.ChromeDriverManager'), \
+         patch('src.services.tweet_scrapper_post.webdriver.Chrome'):
         
         scraper_instance = TweetScraper()
         # Assign mock driver and wait objects directly to the instance
@@ -49,7 +49,7 @@ def test_parse_tweet_datetime():
     # The function is designed to return dt.datetime.min on failure
     assert TweetScraper().parse_tweet_datetime(invalid_str) == dt.datetime.min
 
-@patch('app.services.tweet_scrapper_post.time.sleep')
+@patch('src.services.tweet_scrapper_post.time.sleep')
 def test_login_to_twitter_success(mock_sleep, scraper):
     """Test successful login scenario."""
     mock_user_input = MagicMock()
@@ -76,7 +76,7 @@ def test_login_to_twitter_success(mock_sleep, scraper):
     mock_password_input.send_keys.assert_called_once_with("testpass")
     mock_login_button.click.assert_called_once()
 
-@patch('app.services.tweet_scrapper_post.time.sleep')
+@patch('src.services.tweet_scrapper_post.time.sleep')
 def test_login_to_twitter_failure_on_timeout(mock_sleep, scraper):
     """Test failed login due to a TimeoutException."""
     scraper.wait.until.side_effect = TimeoutException("Element not found.")
@@ -84,9 +84,9 @@ def test_login_to_twitter_failure_on_timeout(mock_sleep, scraper):
     result = scraper.login_to_twitter("testuser", "testpass", "info")
     assert result is False
 
-@patch('app.services.tweet_scrapper_post.time.sleep')
-@patch('app.services.tweet_scrapper_post.open', new_callable=mock_open)
-@patch('app.services.tweet_scrapper_post.json.dump')
+@patch('src.services.tweet_scrapper_post.time.sleep')
+@patch('src.services.tweet_scrapper_post.open', new_callable=mock_open)
+@patch('src.services.tweet_scrapper_post.json.dump')
 def test_scrape_user_post_with_date_filtering(mock_json_dump, mock_file_open, mock_sleep, scraper):
     """Test successful scraping and that posts are filtered by date."""
     target_username = "testuser"
@@ -151,9 +151,9 @@ def test_scrape_user_post_with_date_filtering(mock_json_dump, mock_file_open, mo
     }
     mock_json_dump.assert_called_once_with(expected_post_data, mock_file_open(), ensure_ascii=False, indent=4)
 
-@patch('app.services.tweet_scrapper_post.time.sleep')
-@patch('app.services.tweet_scrapper_post.open', new_callable=mock_open)
-@patch('app.services.tweet_scrapper_post.json.dump')
+@patch('src.services.tweet_scrapper_post.time.sleep')
+@patch('src.services.tweet_scrapper_post.open', new_callable=mock_open)
+@patch('src.services.tweet_scrapper_post.json.dump')
 def test_scrape_user_post_no_posts_found(mock_json_dump, mock_file_open, mock_sleep, scraper):
     """Test scraping when no posts are found on the page."""
     target_username = "nopostuser"

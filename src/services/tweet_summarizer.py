@@ -16,7 +16,7 @@ pjt_home_path = os.path.abspath(pjt_home_path)
 
 site.addsitedir(pjt_home_path)
 
-from app.services import gcs_upload_json
+from src.services import gcs_upload_json
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
