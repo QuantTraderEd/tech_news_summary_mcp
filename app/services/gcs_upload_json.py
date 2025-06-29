@@ -97,13 +97,14 @@ def main(target_news_site: str, base_ymd: str):
     """
     
     local_data_dir=f'{pjt_home_path}/data'
+    gcs_base_path = f"news_data/{target_news_site}"
     try:
         for filename in os.listdir(local_data_dir):
             if filename.endswith('.json') and filename.startswith(target_news_site):
                 local_file_path = os.path.join(local_data_dir, filename)
-                upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
+                upload_local_file_to_gcs(local_file_path, gcs_base_path=gcs_base_path, date_str=base_ymd)
             else:
-                logger.debug(f"skip target file...: '{filename}'")
+                logger.info(f"skip target file...: '{filename}'")
     except Exception as e:
         err_msg = traceback.format_exc()
         logger.error(err_msg)
