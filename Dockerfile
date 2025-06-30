@@ -45,6 +45,7 @@ RUN chown -R app:app /app
 # start_batch.sh 스크립트에 실행 권한을 부여합니다.
 # 이 명령은 아직 root 사용자로 실행되므로 권한 문제가 없습니다.
 RUN chmod +x ./scripts/start_batch.sh
+RUN chmod +x ./scripts/gunicorn_start.sh
 
 # 'app' 사용자로 전환합니다. 이 이후의 모든 명령은 'app' 사용자로 실행됩니다.
 USER app
@@ -57,6 +58,8 @@ ENV PATH="/home/app/.local/bin:${PATH}"
 # requirements.txt 파일에 명시된 모든 Python 패키지를 설치합니다.
 # 이 명령은 'app' 사용자로 실행됩니다.
 RUN pip install --no-cache-dir -r requirements.txt
+
+EXPOSE 8080
 
 # 컨테이너가 시작될 때 run_all_batch.sh 스크립트를 실행합니다.
 # exec 형식은 시그널 처리를 올바르게 합니다.
