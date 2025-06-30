@@ -1,4 +1,5 @@
-#/bin/sh
+#!/bin/bash
+
 echo "Executing generate_config.sh..."
 . $PWD/scripts/generate_config.sh
 
