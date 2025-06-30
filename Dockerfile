@@ -60,4 +60,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 컨테이너가 시작될 때 run_all_batch.sh 스크립트를 실행합니다.
 # exec 형식은 시그널 처리를 올바르게 합니다.
-CMD ["/app/scripts/run_all_batch.sh"]
+# CMD ["/app/scripts/run_all_batch.sh"]
+CMD ["/app/scripts/gunicorn_start.sh"]
