@@ -11,7 +11,7 @@ pjt_home_path = os.path.abspath(pjt_home_path)
 
 site.addsitedir(pjt_home_path)
 
-from app.services import gcs_upload_json
+from src.services import gcs_upload_json
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
@@ -194,3 +194,72 @@ def test_default_date_string(mock_gcs, mock_os_path, caplog_setup):
 
     # 로그 메시지에서도 기본 날짜가 사용되었는지 확인합니다.
     assert f"start upload '{local_file}' file to 'gs://{bucket_name}/{gcs_base}/20000101/'..." in caplog_setup.text
+
+# --- main 함수 테스트 케이스들 ---
+
+@pytest.fixture
+def mock_main_dependencies(mocker):
+    """
+    main 함수에 필요한 의존성(os.listdir, upload_local_file_to_gcs, sys.exit)을 목(mock) 처리합니다.
+    """
+    mock_listdir = mocker.patch('os.listdir')
+    mock_upload = mocker.patch('src.services.gcs_upload_json.upload_local_file_to_gcs')
+    mock_exit = mocker.patch('sys.exit')
+    return mock_listdir, mock_upload, mock_exit
+
+def test_main_uploads_matching_files(mock_main_dependencies, caplog_setup, mocker):
+    """
+    main 함수가 대상 사이트와 확장자에 맞는 파일을 식별하여 업로드 함수를 호출하는지 테스트합니다.
+    """
+    mock_listdir, mock_upload, _ = mock_main_dependencies
+
+    # os.listdir가 반환할 파일 목록을 설정합니다.
+    pjt_home_path = gcs_upload_json.pjt_home_path
+    local_data_dir = os.path.join(pjt_home_path, 'data')
+    mock_listdir.return_value = [
+        'zdnet_news.json',
+        'thelec_news.json',
+        'zdnet_other.txt',
+        'zdnet_archive.json'
+    ]
+
+    target_site = 'zdnet'
+    target_ymd = '20240520'
+
+    # 테스트 대상 함수를 호출합니다.
+    gcs_upload_json.main(target_news_site=target_site, base_ymd=target_ymd)
+
+    # os.listdir가 올바른 경로로 호출되었는지 확인합니다.
+    mock_listdir.assert_called_once_with(local_data_dir)
+
+    # upload_local_file_to_gcs 함수가 올바른 파일에 대해 호출되었는지 확인합니다.
+    # main 함수는 target_news_site를 기반으로 gcs_base를 동적으로 생성하므로,
+    # 테스트에서 이 값을 명시적으로 확인해야 합니다.
+    expected_gcs_base = f"news_data/{target_site}"
+    expected_calls = [
+        mocker.call(os.path.join(local_data_dir, 'zdnet_news.json'), gcs_base_path=expected_gcs_base, date_str=target_ymd),
+        mocker.call(os.path.join(local_data_dir, 'zdnet_archive.json'), gcs_base_path=expected_gcs_base, date_str=target_ymd)
+    ]
+    mock_upload.assert_has_calls(expected_calls, any_order=True)
+    assert mock_upload.call_count == 2
+
+    # 건너뛴 파일에 대한 로그가 올바르게 남았는지 확인합니다.
+    assert "skip target file...: 'thelec_news.json'" in caplog_setup.text
+    assert "skip target file...: 'zdnet_other.txt'" in caplog_setup.text
+
+def test_main_handles_exception(mock_main_dependencies, caplog_setup):
+    """
+    main 함수 내에서 예외가 발생했을 때, sys.exit(1)을 호출하고 오류를 로깅하는지 테스트합니다.
+    """
+    mock_listdir, _, mock_exit = mock_main_dependencies
+
+    # os.listdir 호출 시 예외를 발생시키도록 설정합니다.
+    error_message = "Directory not found"
+    mock_listdir.side_effect = FileNotFoundError(error_message)
+
+    gcs_upload_json.main(target_news_site='zdnet', base_ymd='20240520')
+
+    # sys.exit(1)이 호출되었는지 확인합니다.
+    mock_exit.assert_called_once_with(1)
+    # 오류 메시지가 로그에 기록되었는지 확인합니다.
+    assert error_message in caplog_setup.text
