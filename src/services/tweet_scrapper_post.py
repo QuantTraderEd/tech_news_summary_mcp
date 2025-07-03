@@ -23,6 +23,9 @@ from selenium.common.exceptions import (TimeoutException,
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
+site.addsitedir(pjt_home_path)
+
+from src.services import gcs_upload_json
 
 # --- 로거 설정 ---
 logger = logging.getLogger(__file__)
@@ -36,14 +39,16 @@ kst_timezone = pytz.timezone('Asia/Seoul')
 
 # --- 설정 ---
 # 조회하고 싶은 트위터 사용자 아이디 목록을 리스트로 입력하세요.
-TARGET_USERNAMES = ["rwang07",
-                    "MooreMorrisSemi",
-                    "dnystedt",
-                    "SKundojjala",
-                    "SemiAnalysis_",
-                    "The_AI_Investor",
-                    "danielnewmanUV",
-                    "wallstengine"]
+TARGET_USERNAMES = [
+    "rwang07",
+    "MooreMorrisSemi",
+    "dnystedt",
+    "SKundojjala",
+    "SemiAnalysis_",
+    "The_AI_Investor",
+    "danielnewmanUV",
+    "wallstengine"
+    ]
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
 # 설정 파일 이름
@@ -71,8 +76,8 @@ class TweetScraper:
         logger.info("웹 드라이버를 설정합니다...")
         service = Service(ChromeDriverManager().install())
         options = webdriver.ChromeOptions()
-        options = webdriver.ChromeOptions()
-        options.add_argument("--headless") # 브라우저를 숨기고 싶을 때 주석 해제
+        options.add_argument("--headless=new") # 브라우저를 숨기기
+        options.add_argument("--window-size=1920,1080")  # 충분한 창 크기 설정
         options.add_argument("--no-sandbox") # Sandbox 프로세스 사용 안함: Docker 컨테이너와 같은 제한된 환경에서 필요
         options.add_argument("--disable-dev-shm-usage") # /dev/shm 파티션 사용 안함: 일부 Docker 환경에서 메모리 부족 오류 방지
         options.add_argument("--disable-gpu") # GPU 가속 비활성화
@@ -362,6 +367,10 @@ def main(base_ymd: str):
         # --- 지정된 모든 사용자에 대해 스크래핑 실행 ---
         for user in TARGET_USERNAMES:
             tweet_scraper.scrape_user_post(user)
+            output_filename = f"{pjt_home_path}/data/{user}_posts.json"
+            gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
+                                                     date_str=base_ymd
+                                                     )
 
         # 모든 작업이 끝나면 브라우저 종료
         if tweet_scraper.driver: tweet_scraper.driver.quit()

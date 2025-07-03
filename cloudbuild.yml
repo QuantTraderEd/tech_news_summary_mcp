@@ -1,0 +1,56 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - '-c'
+      - >
+        # $COMMIT_SHA 태그로 이미지를 빌드합니다.
+
+        docker build -t
+        asia-northeast3-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_IMAGE_NAME:latest
+        .
+
+        # 빌드된 $COMMIT_SHA 태그 이미지를 'latest' 태그로도 지정합니다.
+
+        # docker tag
+        asia-northeast3-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_IMAGE_NAME:$COMMIT_SHA
+        asia-northeast3-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_IMAGE_NAME:latest
+    id: Build
+    entrypoint: bash
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - '-c'
+      - >
+        # $COMMIT_SHA 태그가 지정된 이미지를 푸시합니다.
+
+        # docker push
+        asia-northeast3-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_IMAGE_NAME:$COMMIT_SHA
+
+        # 'latest' 태그가 지정된 이미지를 푸시합니다.
+
+        docker push
+        asia-northeast3-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_IMAGE_NAME:latest
+    id: Push
+    entrypoint: bash
+  - name: gcr.io/cloud-builders/gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '$_CLOUD_RUN_SERVICE_NAME' # 배포할 Cloud Run 서비스의 이름
+      - '--image'
+      - 'asia-northeast3-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_IMAGE_NAME:latest' # 배포할 이미지
+      - '--region'
+      - '$_CLOUD_RUN_REGION' # Cloud Run 서비스가 위치한 리전
+      - '--platform'
+      - 'managed' # Cloud Run (managed) 플랫폼을 사용
+    id: 'Deploy'
+    entrypoint: gcloud
+
+images:
+  - 'asia-northeast3-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_IMAGE_NAME:latest'
+options:
+  logging: CLOUD_LOGGING_ONLY
+substitutions:
+  _REPO_NAME: gar-pvt-pjt-repository
+  _IMAGE_NAME: tech-news-summarize
+  _CLOUD_RUN_SERVICE_NAME: tech-news-summarize
+  _CLOUD_RUN_REGION: asia-northeast3
