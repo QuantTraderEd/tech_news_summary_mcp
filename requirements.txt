@@ -13,6 +13,6 @@ pandas==2.2.3
 # snscrape==0.7.0.20230622 # 테스트 결과 트위터 데이터 정상 조회 안됨
 # twint==2.1.20 # 테스트 결과 트위터 데이터 정상 조회 안됨
 google-cloud-storage==3.1.0
-google-cloud-tasks==2.19.3
+# google-cloud-tasks==2.19.3
 selenium==4.33.0
 webdriver_manager==4.0.2
