@@ -23,6 +23,9 @@ from selenium.common.exceptions import (TimeoutException,
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
+site.addsitedir(pjt_home_path)
+
+from src.services import gcs_upload_json
 
 # --- 로거 설정 ---
 logger = logging.getLogger(__file__)
@@ -36,14 +39,16 @@ kst_timezone = pytz.timezone('Asia/Seoul')
 
 # --- 설정 ---
 # 조회하고 싶은 트위터 사용자 아이디 목록을 리스트로 입력하세요.
-TARGET_USERNAMES = ["rwang07",
-                    "MooreMorrisSemi",
-                    "dnystedt",
-                    "SKundojjala",
-                    "SemiAnalysis_",
-                    "The_AI_Investor",
-                    "danielnewmanUV",
-                    "wallstengine"]
+TARGET_USERNAMES = [
+    "rwang07",
+    "MooreMorrisSemi",
+    "dnystedt",
+    "SKundojjala",
+    "SemiAnalysis_",
+    "The_AI_Investor",
+    "danielnewmanUV",
+    "wallstengine"
+    ]
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
 # 설정 파일 이름
@@ -362,6 +367,10 @@ def main(base_ymd: str):
         # --- 지정된 모든 사용자에 대해 스크래핑 실행 ---
         for user in TARGET_USERNAMES:
             tweet_scraper.scrape_user_post(user)
+            output_filename = f"{pjt_home_path}/data/{user}_posts.json"
+            gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
+                                                     date_str=base_ymd
+                                                     )
 
         # 모든 작업이 끝나면 브라우저 종료
         if tweet_scraper.driver: tweet_scraper.driver.quit()
