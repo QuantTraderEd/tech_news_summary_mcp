@@ -13,11 +13,10 @@ from fastapi import BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 # from typing import List
-from google.cloud import tasks_v2
 from google.protobuf import timestamp_pb2, duration_pb2
 
 src_path = os.path.dirname(__file__)
-pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
+pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
@@ -46,9 +45,6 @@ app = FastAPI(
     description="",
     version="1.0.0"
 )
-
-# Cloud Tasks 클라이언트 초기화
-tasks_client = tasks_v2.CloudTasksClient()
 
 # GCP 프로젝트 정보 및 Cloud Tasks 큐 정보
 PROJECT_ID = os.environ.get('GCP_PROJECT_ID', 'theta-window-364015')
