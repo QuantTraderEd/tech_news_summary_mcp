@@ -76,8 +76,8 @@ class TweetScraper:
         logger.info("웹 드라이버를 설정합니다...")
         service = Service(ChromeDriverManager().install())
         options = webdriver.ChromeOptions()
-        options = webdriver.ChromeOptions()
-        options.add_argument("--headless") # 브라우저를 숨기고 싶을 때 주석 해제
+        options.add_argument("--headless=new") # 브라우저를 숨기기
+        options.add_argument("--window-size=1920,1080")  # 충분한 창 크기 설정
         options.add_argument("--no-sandbox") # Sandbox 프로세스 사용 안함: Docker 컨테이너와 같은 제한된 환경에서 필요
         options.add_argument("--disable-dev-shm-usage") # /dev/shm 파티션 사용 안함: 일부 Docker 환경에서 메모리 부족 오류 방지
         options.add_argument("--disable-gpu") # GPU 가속 비활성화
