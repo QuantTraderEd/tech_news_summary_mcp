@@ -108,7 +108,25 @@ def main(target_news_site: str, base_ymd: str):
         err_msg = traceback.format_exc()
         logger.error(err_msg)
         sys.exit(1)
-    
+
+def main_tweet(base_ymd: str):
+    """
+    posts.json 파일 GCS 업로드 메인 배치
+    :param str base_ymd: GCS 업로드 날짜 (yyyymmdd)
+    :return: None
+    """
+    local_data_dir = f'{pjt_home_path}/data'
+    try:
+        for filename in os.listdir(local_data_dir):
+            if filename.endswith('_posts.json') and not filename.startswith('summarized'):
+                local_file_path = os.path.join(local_data_dir, filename)
+                upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
+            else:
+                logger.debug(f"skip target file...: '{filename}'")
+    except Exception as e:
+        err_msg = traceback.format_exc()
+        logger.error(err_msg)
+        sys.exit(1)
 
 if __name__ == "__main__":
     import argparse

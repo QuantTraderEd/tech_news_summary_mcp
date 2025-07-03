@@ -206,6 +206,7 @@ def run_tweet_batch():
     base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
     
     tweet_scrapper_post.main(base_ymd)
+    gcs_upload_json.main_tweet(base_ymd)
     tweet_summarizer.main(base_ymd)
     
     pwd = os.environ.get('NVR_MAIL_PWD')
