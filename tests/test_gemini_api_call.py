@@ -4,6 +4,7 @@ import logging
 import json
 
 import google.generativeai as genai
+import pytest
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir)
@@ -21,7 +22,7 @@ genai.configure(api_key=api_key)
 # 모델 선택 (예: Gemini 1.5 Flash)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-
+@pytest.mark.skip('need API KEY')
 def test_call_gemini_api():
     # 프롬프트 설정 및 요청
     response = model.generate_content("한국의 수도는 어디인가요?")
