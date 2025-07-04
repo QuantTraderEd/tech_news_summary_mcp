@@ -52,7 +52,7 @@ tech_news_summary_mcp/
 │       ├── tweet_scrapper_post.py
 │       ├── tweet_summarizer.py
 │       └── twitter_collector.py
-├── tests
+├── tests                          # 단위테스트 
 └── requirements.txt    
 ```
 
