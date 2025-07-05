@@ -15,8 +15,6 @@ from src.services import gcs_upload_json
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
-# 전체 로그 레벨을 DEBUG로 설정
-logging.basicConfig(level=logging.DEBUG)
 
 # 1. 단위테스트 시 필요한 패키지 추가 설치
 # pip install pytest pytest-mock
@@ -24,6 +22,7 @@ logging.basicConfig(level=logging.DEBUG)
 # pytest -vs tests/test_gcs_upload_json.py
 # -v 옵션: 상세한 테스트 결과를 보여줍니다.
 # -s 옵션: logging 출력을 캡처하지 않고 표준 출력을 표시합니다 (로그 메시지를 직접 볼 수 있습니다).
+# --log-level=DEBUG 옵션: 로그 출력 레밸 조정하여 로그 출력
 
 
 @pytest.fixture
