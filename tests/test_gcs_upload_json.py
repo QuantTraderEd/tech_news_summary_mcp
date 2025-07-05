@@ -22,6 +22,7 @@ logger = logging.getLogger(__file__)
 # pytest -vs tests/test_gcs_upload_json.py
 # -v 옵션: 상세한 테스트 결과를 보여줍니다.
 # -s 옵션: logging 출력을 캡처하지 않고 표준 출력을 표시합니다 (로그 메시지를 직접 볼 수 있습니다).
+# -x 옵션: 첫 실패 시 중단
 # --log-level=DEBUG 옵션: 로그 출력 레밸 조정하여 로그 출력
 
 
@@ -264,3 +265,10 @@ def test_main_handles_exception(mock_main_dependencies, caplog_setup):
     mock_exit.assert_called_once_with(1)
     # 오류 메시지가 로그에 기록되었는지 확인합니다.
     assert error_message in caplog_setup.text
+
+if __name__ == "__main__":
+    exit_code = pytest.main(["-v", "tests/test_gcs_upload_json.py::test_main_uploads_matching_files"])
+    if exit_code == 0:
+        print("✅ 모든 테스트 통과")
+    else:
+        print("❌ 테스트 실패")
