@@ -95,10 +95,10 @@ def process_posts(input_filename: str, summarized_posts: list):
         with open(input_filename, 'r', encoding='utf-8') as f:
             posts = json.load(f).get('data', [])
     except FileNotFoundError:
-        logger.error(f"오류: 입력 파일 '{input_filename}'을(를) 찾을 수 없습니다.", exc_info=True)
+        logger.warning(f"입력 파일 '{input_filename}'을(를) 찾을 수 없습니다.", exc_info=True)
         return
     except json.JSONDecodeError:
-        logger.error(f"오류: '{input_filename}' 파일이 올바른 JSON 형식이 아닙니다.", exc_info=True)
+        logger.warning(f"'{input_filename}' 파일이 올바른 JSON 형식이 아닙니다.", exc_info=True)
         return    
 
     for i, post in enumerate(posts):
