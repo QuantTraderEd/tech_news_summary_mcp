@@ -367,12 +367,7 @@ def main(base_ymd: str):
 
         # --- 지정된 모든 사용자에 대해 스크래핑 실행 ---
         for user in TARGET_USERNAMES:
-            tweet_scraper.scrape_user_post(user)
-            output_filename = f"{pjt_home_path}/data/{user}_posts.json"
-            if os.path.exists(output_filename): 
-                gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
-                                                        date_str=base_ymd
-                                                        )
+            tweet_scraper.scrape_user_post(user)            
 
         # 모든 작업이 끝나면 브라우저 종료
         if tweet_scraper.driver: tweet_scraper.driver.quit()
