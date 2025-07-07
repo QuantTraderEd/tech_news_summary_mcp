@@ -15,6 +15,8 @@ from src.services import gcs_upload_json
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
+# 전체 로그 레벨을 DEBUG로 설정
+logging.basicConfig(level=logging.DEBUG)
 
 # 1. 단위테스트 시 필요한 패키지 추가 설치
 # pip install pytest pytest-mock
@@ -235,10 +237,10 @@ def test_main_uploads_matching_files(mock_main_dependencies, caplog_setup, mocke
     # upload_local_file_to_gcs 함수가 올바른 파일에 대해 호출되었는지 확인합니다.
     # main 함수는 target_news_site를 기반으로 gcs_base를 동적으로 생성하므로,
     # 테스트에서 이 값을 명시적으로 확인해야 합니다.
-    expected_gcs_base = f"news_data/{target_site}"
+    expected_gcs_base = f"news_data"
     expected_calls = [
-        mocker.call(os.path.join(local_data_dir, 'zdnet_news.json'), gcs_base_path=expected_gcs_base, date_str=target_ymd),
-        mocker.call(os.path.join(local_data_dir, 'zdnet_archive.json'), gcs_base_path=expected_gcs_base, date_str=target_ymd)
+        mocker.call(os.path.join(local_data_dir, 'zdnet_news.json'), date_str=target_ymd),
+        mocker.call(os.path.join(local_data_dir, 'zdnet_archive.json'), date_str=target_ymd)
     ]
     mock_upload.assert_has_calls(expected_calls, any_order=True)
     assert mock_upload.call_count == 2

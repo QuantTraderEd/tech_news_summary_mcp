@@ -17,6 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (TimeoutException,
                                         NoSuchElementException,
+                                        StaleElementReferenceException,
                                         WebDriverException,
                                         ElementClickInterceptedException)
 
@@ -290,11 +291,11 @@ class TweetScraper:
                     posts_list.append(post_data)
                     processed_post_urls.add(post_url)
 
-                except NoSuchElementException:
+                except (NoSuchElementException, StaleElementReferenceException):
                     logger.warning('find_element 함수에 의해서 요소를 찾을 수 없음.', exc_info=True)
                     if post_url is not None and timestamp is not None:
                         logger.warning(f"plz checkup post: {post_url} | {timestamp}")
-                    continue
+                    continue                
 
             # 페이지 맨 아래로 스크롤하여 새 게시글을 로드합니다.
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -368,9 +369,10 @@ def main(base_ymd: str):
         for user in TARGET_USERNAMES:
             tweet_scraper.scrape_user_post(user)
             output_filename = f"{pjt_home_path}/data/{user}_posts.json"
-            gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
-                                                     date_str=base_ymd
-                                                     )
+            if os.path.exists(output_filename): 
+                gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
+                                                        date_str=base_ymd
+                                                        )
 
         # 모든 작업이 끝나면 브라우저 종료
         if tweet_scraper.driver: tweet_scraper.driver.quit()
