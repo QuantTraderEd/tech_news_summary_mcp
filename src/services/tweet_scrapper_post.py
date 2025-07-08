@@ -343,7 +343,7 @@ def main(base_ymd: str):
         end_date = end_date.replace(tzinfo=dt.timezone.utc) + dt.timedelta(hours=24)
         # start_date = end_date - dt.timedelta(days=2)
         now_utc_dt = dt.datetime.utcnow()
-        start_date = now_utc_dt - dt.timedelta(hours=20)
+        start_date = now_utc_dt - dt.timedelta(hours=24)
         start_date = start_date.replace(tzinfo=dt.timezone.utc)
         
         if start_date > end_date:
