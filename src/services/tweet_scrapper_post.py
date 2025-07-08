@@ -302,7 +302,7 @@ class TweetScraper:
             # 새 게시글이 로드될 때까지 잠시 기다립니다.
             time.sleep(4)
 
-            if skip_article_cnt >= 2:
+            if skip_article_cnt >= 4:
                 logger.info(f"skip_article_cnt ==> {skip_article_cnt}")
                 logger.info("stop scroll for skip out-date post!!")
                 break
@@ -341,7 +341,14 @@ def main(base_ymd: str):
         # 날짜 범위 설정
         end_date = dt.datetime.strptime(base_ymd, "%Y%m%d")
         end_date = end_date.replace(tzinfo=dt.timezone.utc) + dt.timedelta(hours=24)
-        start_date = end_date - dt.timedelta(days=2)
+        # start_date = end_date - dt.timedelta(days=2)
+        now_utc_dt = dt.datetime.utcnow()
+        start_date = now_utc_dt - dt.timedelta(hours=20)
+        start_date = start_date.replace(tzinfo=dt.timezone.utc)
+        
+        if start_date > end_date:
+            logger.error("start_date > end_date ... ! plz check up end_date!!")
+            raise Exception
 
         # --- 설정 파일 로드 ---
         try:
