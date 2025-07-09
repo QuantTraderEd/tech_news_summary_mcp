@@ -31,23 +31,6 @@ stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
 
-# JSON 파일 읽고 이메일 리스트 로딩
-def load_recv_emails_from_config():
-    config_path = os.path.join(pjt_home_path, 'config.json')
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-            receiver_email_list = config.get('RECEIVER_EMAIL_LIST', [])
-            if not isinstance(receiver_email_list, list):
-                raise ValueError("receiver_email_list 항목이 리스트가 아닙니다.")
-            return receiver_email_list
-    except FileNotFoundError:
-        logger.error(f"파일을 찾을 수 없습니다: {config_path}")
-        return []
-    except json.JSONDecodeError:
-        logger.error("JSON 파일 형식이 잘못되었습니다.")
-        return []
-
 def create_email_body(posts_data):
     """
     게시물 데이터를 기반으로 모바일 가독성이 높은 HTML 이메일 본문을 생성합니다.
@@ -254,7 +237,7 @@ def main(pwd: str):
     RECEIVER_EMAIL_LIST = []  # 수신자 이메일 주소 (실제 수신자 이메일로 변경)
     JSON_FILE_PATH = f"{pjt_home_path}/data/summarized_posts.json"  # JSON 파일 경로
     
-    RECEIVER_EMAIL_LIST = load_recv_emails_from_config()
+    RECEIVER_EMAIL_LIST = send_mail.load_recv_emails_from_config()
     if not RECEIVER_EMAIL_LIST:
         logger.error("RECEIVER_EMAIL_LIST is empty!!") 
         sys.exit(1)
