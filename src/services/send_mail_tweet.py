@@ -209,7 +209,7 @@ def send_email_with_tweet(sender_email, sender_password, receiver_email_list, ma
     mail_accnt = sender_email
     pwd = sender_password
     to_mail_list = receiver_email_list
-    logger.info(f"발신자: {mail_accnt}, 수신자: {to_mail_list}")
+    logger.debug(f"발신자: {mail_accnt}, 수신자: {to_mail_list}")
     
 
     mail_server = send_mail.mail_server_login(mail_accnt, pwd)
@@ -232,10 +232,17 @@ def send_email_with_tweet(sender_email, sender_password, receiver_email_list, ma
     
 def main(pwd: str):
     # 사용자 정보 설정 (실제 정보로 변경 필요)
-    SENDER_EMAIL = "ggtt7@naver.com"  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
+    SENDER_EMAIL = ""  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
     SENDER_PASSWORD = pwd + 'CH'   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
-    RECEIVER_EMAIL_LIST = ["ggtt7@naver.com"]  # 수신자 이메일 주소 (실제 수신자 이메일로 변경)
+    RECEIVER_EMAIL_LIST = []  # 수신자 이메일 주소 (실제 수신자 이메일로 변경)
     JSON_FILE_PATH = f"{pjt_home_path}/data/summarized_posts.json"  # JSON 파일 경로
+    
+    RECEIVER_EMAIL_LIST = send_mail.load_recv_emails_from_config()
+    if not RECEIVER_EMAIL_LIST:
+        logger.error("RECEIVER_EMAIL_LIST is empty!!") 
+        sys.exit(1)
+        
+    SENDER_EMAIL = RECEIVER_EMAIL_LIST[0]
     
     if pwd == "":
         logger.error("pwd is empty!!")
