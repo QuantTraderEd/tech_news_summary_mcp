@@ -20,9 +20,11 @@ pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
+from src.services import gcs_upload_json
+from src.services import gcs_download_json
+
 from src.services import news_crawler_thelec
 from src.services import news_crawler_zdnet
-from src.services import gcs_upload_json
 from src.services import news_summarizer
 from src.services import send_mail
 
@@ -164,6 +166,8 @@ async def execute_batch(backgroundtasks: BackgroundTasks, payload: BatchParams):
             backgroundtasks.add_task(run_news_batch)
         elif batch_type == 'tweet':
             backgroundtasks.add_task(run_tweet_batch)
+        elif batch_type == 'tweet_rerun':
+            backgroundtasks.add_task(run_tweet_rerun_batch)
         else:
             msg = f"Error: Unknown batch type '{batch_type}'."
             logger.warning(msg)
@@ -203,6 +207,15 @@ def run_tweet_batch():
     
     tweet_scrapper_post.main(base_ymd)
     gcs_upload_json.main_tweet(base_ymd)
+    tweet_summarizer.main(base_ymd)
+    
+    pwd = os.environ.get('NVR_MAIL_PWD')
+    send_mail_tweet.main(pwd)
+    
+def run_tweet_rerun_batch():
+    base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
+    
+    gcs_download_json.download_gcs_posts_json_to_local(target_date=base_ymd)
     tweet_summarizer.main(base_ymd)
     
     pwd = os.environ.get('NVR_MAIL_PWD')
