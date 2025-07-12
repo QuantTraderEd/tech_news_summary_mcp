@@ -167,7 +167,8 @@ async def execute_batch(backgroundtasks: BackgroundTasks, payload: BatchParams):
         elif batch_type == 'tweet':
             backgroundtasks.add_task(run_tweet_batch)
         elif batch_type == 'tweet_rerun':
-            backgroundtasks.add_task(run_tweet_rerun_batch)
+            base_ymd = params.get('base_ymd', None)
+            backgroundtasks.add_task(run_tweet_rerun_batch, base_ymd)
         else:
             msg = f"Error: Unknown batch type '{batch_type}'."
             logger.warning(msg)
@@ -212,12 +213,14 @@ def run_tweet_batch():
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail_tweet.main(pwd)
     
-def run_tweet_rerun_batch():
-    base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
-    
+def run_tweet_rerun_batch(base_ymd=None):
+
+    if not base_ymd:
+        base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
+
     gcs_download_json.download_gcs_posts_json_to_local(target_date=base_ymd)
     tweet_summarizer.main(base_ymd)
-    
+
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail_tweet.main(pwd)
     
