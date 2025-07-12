@@ -21,6 +21,8 @@ logger.addHandler(stream_log)
 
 kst_timezone = pytz.timezone('Asia/Seoul')
 
+from src.services import tweet_scrapper_post
+
 def download_gcs_to_local(
     file_name: str,
     bucket_name: str ='gcs-private-pjt-data', 
@@ -78,17 +80,8 @@ def local_test():
     
 def download_gcs_posts_json_to_local(target_user_list:list = [], target_date:str = '20000101'):
     if not target_user_list:
-        target_user_list = [
-            "rwang07",
-            "MooreMorrisSemi",
-            "dnystedt",
-            "SKundojjala",
-            "SemiAnalysis_",
-            "The_AI_Investor",
-            "danielnewmanUV",
-            "wallstengine"
-        ]
-    
+        target_user_list = tweet_scrapper_post.TARGET_USERNAMES
+
     for target_user in target_user_list:
         file_name = f"{target_user}_posts.json"
         ret = download_gcs_to_local(file_name, date_str=target_date)

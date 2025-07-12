@@ -46,7 +46,7 @@ TARGET_USERNAMES = [
     "dnystedt",
     "SKundojjala",
     "SemiAnalysis_",
-    "The_AI_Investor",
+    "artificialanlys",
     "danielnewmanUV",
     "wallstengine"
     ]
