@@ -118,7 +118,8 @@ def process_posts(input_filename: str, summarized_posts: list):
             translation_prompt = f"Translate the following English text to Korean:\n\n---\n{original_text}\n---"
             post['translated_text'] = call_gemini_api(translation_prompt)
                         
-            title_prompt = f"Create a concise and representative title in Korean for the following English text. Provide only the title text without any quotation marks or extra words.\n\n---\n{original_text}\n---"
+            title_prompt = (f"Create a concise and representative title in Korean for the following English text. "
+                            f"Provide only the title text without any quotation marks or extra words.\n\n---\n{original_text}\n---")
             post['title'] = call_gemini_api(title_prompt)
             
             summary_prompt = f"Summarize the following English text into a 3-point bullet list in Korean:\n\n---\n{original_text}\n---"
@@ -126,7 +127,9 @@ def process_posts(input_filename: str, summarized_posts: list):
             
         elif 15 <= text_len < 250:
             logger.info(f"  - 내용 길이({text_len}) < 250. 번역만 진행합니다.")
-            translation_prompt = f"Translate the following English text to Korean:\n\n---\n{original_text}\n---"
+            translation_prompt = (
+                f"Translate the following English text into a single, most natural and modern Korean sentence. "
+                f"Do not provide any other options or labels.:\n\n---\n{original_text}\n---")
             post['translated_text'] = call_gemini_api(translation_prompt)
             
         else:
