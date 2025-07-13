@@ -47,6 +47,8 @@ TARGET_USERNAMES = [
     "SKundojjala",
     "SemiAnalysis_",
     "artificialanlys",
+    "kimmonismus",
+    "scaling01",
     "danielnewmanUV",
     "wallstengine"
     ]
@@ -226,6 +228,10 @@ class TweetScraper:
                 logger.info("소개글이 없습니다.")
         except NoSuchElementException:
             logger.warning("소개글을 찾을 수 없습니다.")
+
+        logger.info("타임라인 콘텐츠가 로드될 때까지 대기합니다...")
+        self.wait.until(EC.presence_of_element_located((By.XPATH, "//div[@data-testid='cellInnerDiv']")))
+        time.sleep(5)  # 스크롤 관련 스크립트가 완전히 초기화될 시간을 추가로 확보합니다.
 
         logger.info("게시글을 수집합니다...")
         posts_list = []

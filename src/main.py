@@ -3,10 +3,12 @@ import sys
 import site
 import logging
 import time
+import json
 import asyncio
 import datetime as dt
 
 import pytz
+import pandas as pd
 
 from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi import BackgroundTasks
@@ -212,6 +214,8 @@ def run_tweet_batch():
     
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail_tweet.main(pwd)
+
+    count_tweet_posts()
     
 def run_tweet_rerun_batch(base_ymd=None):
 
@@ -223,7 +227,46 @@ def run_tweet_rerun_batch(base_ymd=None):
 
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail_tweet.main(pwd)
-    
+
+    count_tweet_posts()
+
+def count_tweet_posts():
+    """
+    로컬 data 디렉토리에 저장된 파일을 기준으로 카운트합니다.
+    """
+
+    # 데이터가 저장된 기본 경로를 설정합니다.
+    data_path = os.path.join(pjt_home_path, 'data')
+
+    # tweet_scrapper_post 모듈에서 타겟 사용자 리스트를 가져옵니다.
+    target_users = tweet_scrapper_post.TARGET_USERNAMES
+
+    post_counts = {}
+    logger.info(f"Counting tweet posts...")
+
+    for username in target_users:
+        file_path = os.path.join(data_path, f"{username}_posts.json")
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                posts = json.load(f)
+                # JSON 파일 안의 리스트 길이를 세어 게시글 수를 계산합니다.
+                post_counts[username] = len(posts['data'])
+                logger.info(f"Found {len(posts['data'])} posts for user '{username}' in {file_path}")
+        except FileNotFoundError:
+            logger.warning(f"File not found for user '{username}': {file_path}")
+            post_counts[username] = 0  # 파일이 없으면 0개로 처리
+        except json.JSONDecodeError:
+            logger.error(f"Error decoding JSON for user '{username}': {file_path}")
+            post_counts[username] = "Error: Invalid JSON file"
+        except Exception as e:
+            logger.error(f"An unexpected error occurred for user '{username}': {e}", exc_info=True)
+            post_counts[username] = f"Error: {e}"
+
+    df_post_cnt = pd.DataFrame([post_counts]).T
+    df_post_cnt.columns = ['cnt']
+    logger.info(f"post_counts ==> \n {df_post_cnt.to_markdown()}")
+
+    return df_post_cnt
     
 if __name__ == "__main__":
     import uvicorn
