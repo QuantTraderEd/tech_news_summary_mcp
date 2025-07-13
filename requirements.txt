@@ -10,6 +10,7 @@ python-dotenv==1.0.1
 google-generativeai==0.8.5 # Google Gemini API client (if using Gemini)
 openai==1.35.13 # if using OpenAI
 pandas==2.2.3
+tabulate==0.9.0
 # snscrape==0.7.0.20230622 # 테스트 결과 트위터 데이터 정상 조회 안됨
 # twint==2.1.20 # 테스트 결과 트위터 데이터 정상 조회 안됨
 google-cloud-storage==3.1.0
