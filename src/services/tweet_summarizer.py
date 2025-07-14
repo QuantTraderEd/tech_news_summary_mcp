@@ -17,6 +17,7 @@ pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
 from src.services import gcs_upload_json
+from src.services import tweet_scrapper_post
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
@@ -146,12 +147,7 @@ def main(base_ymd: str):
     
     summarized_posts = []
     
-    tweet_source_list = [
-        'rwang07',
-        'MooreMorrisSemi',
-        'The_AI_Investor',
-        'wallstengine',
-    ]
+    tweet_source_list = tweet_scrapper_post.TARGET_USERNAMES
     
     try:
         for tweet_user in tweet_source_list:

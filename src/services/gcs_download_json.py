@@ -1,5 +1,6 @@
 import os
 import sys
+import site
 import logging
 import traceback
 import datetime as dt
@@ -10,6 +11,7 @@ from google.cloud import storage
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
+site.addsitedir(pjt_home_path)
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
@@ -90,4 +92,4 @@ def download_gcs_posts_json_to_local(target_user_list:list = [], target_date:str
 
 if __name__ == '__main__':
     # local_test()
-    download_gcs_posts_json_to_local(target_date='20250711')
+    download_gcs_posts_json_to_local(target_date='20250713')
