@@ -283,6 +283,11 @@ class TweetScraper:
                             full_text_element = self.wait.until(EC.presence_of_element_located((By.XPATH, full_text_xpath)))
                             post_text = full_text_element.text
                             time.sleep(2)
+                        except TimeoutException:
+                            msg = traceback.format_exc()
+                            logger.warning(f'full_text_element is timeout!! ==>\n{msg}')
+                            logger.warning(f"plz checkup post: {post_url} | {timestamp}")
+                            post_text = 'ft timeout'
                         finally:
                             self.driver.close()
                             self.driver.switch_to.window(original_window)
@@ -298,7 +303,8 @@ class TweetScraper:
                     processed_post_urls.add(post_url)
 
                 except (NoSuchElementException, StaleElementReferenceException):
-                    logger.warning('find_element 함수에 의해서 요소를 찾을 수 없음.', exc_info=True)
+                    msg = traceback.format_exc()
+                    logger.warning(f'find_element 함수에 의해서 요소를 찾을 수 없음. ==>\n{msg}')
                     if post_url is not None and timestamp is not None:
                         logger.warning(f"plz checkup post: {post_url} | {timestamp}")
                     continue                
