@@ -298,7 +298,8 @@ class TweetScraper:
                     processed_post_urls.add(post_url)
 
                 except (NoSuchElementException, StaleElementReferenceException):
-                    logger.warning('find_element 함수에 의해서 요소를 찾을 수 없음.', exc_info=True)
+                    msg = traceback.format_exc()
+                    logger.warning(f'find_element 함수에 의해서 요소를 찾을 수 없음. ==>\n{msg}')
                     if post_url is not None and timestamp is not None:
                         logger.warning(f"plz checkup post: {post_url} | {timestamp}")
                     continue                
