@@ -226,7 +226,7 @@ def send_email_with_tweet(sender_email, sender_password, receiver_email_list, ma
 
     # 메일 전송
     mail_server.sendmail(mail_accnt, to_mail_list, msg.as_string())
-    logger.info(f"메일 발송 성공: {mail_subject}")
+    logger.info(f"🚀 메일 발송 성공: {mail_subject}")
 
     mail_server.quit()
     
