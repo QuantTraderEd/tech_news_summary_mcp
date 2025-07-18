@@ -283,6 +283,11 @@ class TweetScraper:
                             full_text_element = self.wait.until(EC.presence_of_element_located((By.XPATH, full_text_xpath)))
                             post_text = full_text_element.text
                             time.sleep(2)
+                        except TimeoutException:
+                            msg = traceback.format_exc()
+                            logger.warning(f'full_text_element is timeout!! ==>\n{msg}')
+                            logger.warning(f"plz checkup post: {post_url} | {timestamp}")
+                            post_text = 'ft timeout'
                         finally:
                             self.driver.close()
                             self.driver.switch_to.window(original_window)
