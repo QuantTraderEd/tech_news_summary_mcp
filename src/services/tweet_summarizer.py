@@ -17,6 +17,7 @@ pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
 from src.services import gcs_upload_json
+from src.services import gcs_download_json
 from src.services import tweet_scrapper_post
 
 # 로깅 설정
@@ -158,19 +159,35 @@ def main(base_ymd: str):
         
             process_posts(input_filename, summarized_posts)
         
-        output_data = {'data': summarized_posts}
-        
-        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
+        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_new_posts.json')
 
         with open(output_filename, 'w', encoding='utf-8') as f:
             json.dump(summarized_posts, f, ensure_ascii=False, indent=4)
 
-        logger.info(f"✅ 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
-        logger.info("="*50)
-        
         # json 파일 GCS 에 업로드
         gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
-                                                date_str=base_ymd)
+                                                 date_str=base_ymd)
+
+        logger.info(f"✅ 신규 Tweet 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
+
+        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
+
+        ret = gcs_download_json.download_gcs_to_local(file_name='summarized_posts.json', date_str=base_ymd)
+
+        if ret == 0:
+            with open(output_filename, 'r', encoding='utf-8') as f:
+                summarized_old_posts = json.load(f)
+            summarized_posts = summarized_old_posts + summarized_posts
+
+        with open(output_filename, 'w', encoding='utf-8') as f:
+            json.dump(summarized_posts, f, ensure_ascii=False, indent=4)
+
+        # json 파일 GCS 에 업로드
+        gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
+                                                 date_str=base_ymd)
+
+        logger.info(f"✅ 통합 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
+        logger.info("="*50)
         
     except Exception as e:
         msg = traceback.format_exc()
