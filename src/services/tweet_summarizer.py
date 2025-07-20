@@ -122,8 +122,11 @@ def process_posts(input_filename: str, summarized_posts: list):
             title_prompt = (f"Create a concise and representative title in Korean for the following English text. "
                             f"Provide only the title text without any quotation marks or extra words.\n\n---\n{original_text}\n---")
             post['title'] = call_gemini_api(title_prompt)
-            
-            summary_prompt = f"Summarize the following English text into a 3-point bullet list in Korean:\n\n---\n{original_text}\n---"
+
+            summary_prompt = (
+                f"Summarize the following English text into a 3-point bullet list in most natural and modern Korean. "
+                f"Do not provide any other explanations or the original English text.:\n\n"
+                f"---\n{original_text}\n---")
             post['summary'] = call_gemini_api(summary_prompt)
             
         elif 15 <= text_len < 250:
