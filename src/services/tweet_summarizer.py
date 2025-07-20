@@ -85,8 +85,21 @@ def call_gemini_api(prompt_text):
             logger.error(f"Gemini API 호출 중 예기치 않은 오류 발생: {e}", exc_info=True)
             return "Error during API call."
 
+def remove_duplicate_posts(posts_list: list) -> list:
+    """
+    주어진 게시물 리스트에서 'url'을 기준으로 중복된 게시물을 제거합니다.
+    가장 최근에 추가된(또는 리스트의 앞쪽에 있는) 항목을 유지합니다.
+    """
+    seen_urls = set()
+    unique_posts = []
 
-# --- 3. 메인 로직 ---
+    for item in posts_list:
+        if 'url' in item and item['url'] not in seen_urls:
+            unique_posts.append(item)
+            seen_urls.add(item['url'])
+        elif 'url' not in item: # URL이 없는 항목은 중복 검사 없이 추가
+            unique_posts.append(item)
+    return unique_posts
 
 def process_posts(input_filename: str, summarized_posts: list):
     """
@@ -142,6 +155,7 @@ def process_posts(input_filename: str, summarized_posts: list):
 
         summarized_posts.append(post)
 
+# --- 3. 메인 로직 ---
 def main(base_ymd: str):
     """
     메인 실행 함수
@@ -159,7 +173,7 @@ def main(base_ymd: str):
         
             process_posts(input_filename, summarized_posts)
         
-        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_new_posts.json')
+        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
 
         with open(output_filename, 'w', encoding='utf-8') as f:
             json.dump(summarized_posts, f, ensure_ascii=False, indent=4)
@@ -170,14 +184,23 @@ def main(base_ymd: str):
 
         logger.info(f"✅ 신규 Tweet 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
 
-        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
+        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts_agg.json')
 
-        ret = gcs_download_json.download_gcs_to_local(file_name='summarized_posts.json', date_str=base_ymd)
+        ret = gcs_download_json.download_gcs_to_local(file_name='summarized_posts_agg.json', date_str=base_ymd)
+        logger.info(f"download_gcs_to_local ret => {ret}")
 
         if ret == 0:
             with open(output_filename, 'r', encoding='utf-8') as f:
                 summarized_old_posts = json.load(f)
-            summarized_posts = summarized_old_posts + summarized_posts
+                logger.info(f"summarized_posts (old-agg) cnt => {len(summarized_old_posts)}")
+            
+            logger.info(f"summarized_posts cnt => {len(summarized_posts)}")
+            summarized_posts = summarized_posts + summarized_old_posts
+            logger.info(f"summarized_posts (agg) cnt => {len(summarized_posts)}")
+
+            # 중복 제거 함수 호출
+            summarized_posts = remove_duplicate_posts(summarized_posts)
+            logger.info(f"summarized_posts (agg-non-dup) cnt => {len(summarized_posts)}")
 
         with open(output_filename, 'w', encoding='utf-8') as f:
             json.dump(summarized_posts, f, ensure_ascii=False, indent=4)
@@ -217,4 +240,3 @@ if __name__ == "__main__":
         parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
     
     main(base_ymd=args.base_ymd)
-
