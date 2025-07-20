@@ -44,6 +44,23 @@ def test_translate_call_gemini_api():
     assert hasattr(response, 'text')
     print(result)
 
+@pytest.mark.skip('need API KEY')
+def test_summary_call_gemini_api():
+    original_text = "$NVDA China restart faces production obstacles reported by Reuters, citing The Information The U.S. government's April ban on sales of the H20 chips had forced Nvidia to void customer orders and cancel manufacturing capacity it had booked at $TSM, said the report in tech publication The Information, citing two people with knowledge of the matter. TSMC had shifted its H20 production lines to produce other chips for other customers, and manufacturing new chips from scratch could take nine months, Nvidia CEO Jensen Huang said at a media event in Beijing this week, according to the report. The report also said Nvidia did not plan to restart production, without citing any sources or giving details. *any surprise here?"
+    summary_prompt = (
+        f"Summarize the following English text into a 3-point bullet list in most natural and modern Korean. "
+        f"Do not provide any other explanations or the original English text.:\n\n"
+        f"---\n{original_text}\n---")
+
+    response = model.generate_content(summary_prompt)
+
+    # 결과 출력
+    result = response.text
+    assert hasattr(response, 'text')
+    print(result)
+
+
 if __name__ == "__main__":
     # test_call_gemini_api()
-    test_translate_call_gemini_api()
+    # test_translate_call_gemini_api()
+    test_summary_call_gemini_api()
