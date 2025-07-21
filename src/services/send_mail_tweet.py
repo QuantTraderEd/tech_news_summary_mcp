@@ -5,6 +5,7 @@ import logging
 import traceback
 import json
 import smtplib
+import datetime as dt
 
 from email import encoders
 from email.header import Header
@@ -138,6 +139,16 @@ def create_email_body(posts_data):
         translated_text = post.get('translated_text')
         summary = post.get('summary')
 
+        # created_at 값을 파싱하여 날짜 형식 포멧 문자열 title에 추가
+        create_str_date = ''
+        if created_at and created_at != '날짜 정보 없음':
+            try:
+                dt_object = dt.datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                create_str_date = dt_object.strftime('%y.%-m.%-d')                
+            except ValueError:
+                logger.warning(f"Failed to parse created_at: {created_at}")
+        
+
         main_content_html = ""
 
         # 1. 요약(summary)이 있는지 확인하고, 있으면 제목과 요약 HTML을 생성합니다.
@@ -145,6 +156,7 @@ def create_email_body(posts_data):
             title_html = ""
             # 제목이 있으면 h3 태그로 만듭니다.
             if title:
+                title = f"{title} ({create_str_date})"
                 title_html = f'<h3 class="post-title">{title}</h3>'
             
             summary_html = ""
@@ -173,6 +185,8 @@ def create_email_body(posts_data):
         # 2. 요약이 없고 번역문(translated_text)만 있는 경우, 번역문 HTML을 생성합니다.
         elif translated_text:
             processed_text = translated_text.replace('\n', '<br>')
+            processed_text = f"{processed_text.replace('<br>', '')} ({create_str_date})"
+            logger.debug(f"processed_text: => \n{processed_text}")
             main_content_html = f"""
             <div class="post-text">
                 <strong>번역문:</strong><br>
