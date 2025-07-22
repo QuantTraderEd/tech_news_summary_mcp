@@ -50,6 +50,7 @@ TARGET_USERNAMES = [
     "kimmonismus",
     "scaling01",
     "danielnewmanUV",
+    "The_AI_Investor",
     "wallstengine"
     ]
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
