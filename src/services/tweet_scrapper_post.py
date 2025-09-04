@@ -43,6 +43,7 @@ kst_timezone = pytz.timezone('Asia/Seoul')
 TARGET_USERNAMES = [
     "rwang07",
     "MooreMorrisSemi",
+    "BenBajarin",
     "dnystedt",
     "SKundojjala",
     "SemiAnalysis_",
