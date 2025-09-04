@@ -4,29 +4,28 @@ FROM python:3.10-slim
 # 작업 디렉토리를 /app으로 설정합니다.
 WORKDIR /app
 
-# 시스템 패키지 업데이트 및 크롬 의존성 설치
+# 시스템 패키지 업데이트 및 Google Chrome 설치
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     gnupg \
     ca-certificates \
-    # 크롬 브라우저 실행에 필요한 라이브러리들
+    # Google Chrome PPA 키 추가 (새로운 방식)
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg \
+    # Google Chrome 저장소 추가
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    # 패키지 목록 업데이트 및 Google Chrome 설치
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    # Chrome 실행에 필요한 추가 라이브러리 (필요시)
     libglib2.0-0 \
     libnss3 \
-    libgconf-2-4 \
     libfontconfig1 \
     libdbus-1-3 \
     libatk-bridge2.0-0 \
     libgtk-3-0 \
     libgbm-dev \
     libasound2 \
-    && rm -rf /var/lib/apt/lists/*
-
-# 구글 크롬 브라우저 설치
-# wget으로 구글의 공식 배포판을 다운로드하여 설치
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
+    # 설치 후 캐시 정리
     && rm -rf /var/lib/apt/lists/*
 
 # 현재 디렉토리의 모든 파일과 폴더를 /app 디렉토리로 복사합니다.
