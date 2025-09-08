@@ -76,7 +76,10 @@ def main(base_ymd: str):
     
     news_source_list = ['zdnet_semiconductor',
                         'zdnet_computing',
-                        'thelec_semiconductor']
+                        'thelec_semiconductor',
+                        'etnews_electronics',
+                        'etnews_software',
+                        'etnews_it']
     summarized_results = []
     
     try:
