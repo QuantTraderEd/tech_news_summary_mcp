@@ -5,6 +5,7 @@ import traceback
 import re
 import json
 import time
+import random
 import datetime as dt
 
 from typing import List, Dict
@@ -168,13 +169,20 @@ class NewsCrawlerEtnews:
                     logger.debug(f"Skipping old article: {title} ({published_datetime})")
             
         return news_list
-
-    def _parse_article_content(self, html: str) -> str:
+    
+    def fetch_article_content(self, article_url: str) -> str:
         """
         개별 기사 페이지의 HTML에서 본문 텍스트를 파싱합니다.
         :param html: 기사 페이지의 HTML 콘텐츠
         :return: 기사 본문 텍스트
         """
+        logger.info(f"Fetching content for article: {article_url}")
+        
+        self._update_headers()
+        html = self._fetch_html(article_url)
+        if html is None:
+            return "Content not found. (request fail!!)"
+        
         soup = BeautifulSoup(html, 'html.parser')
         
         # 본문은 'div' 태그와 'article_body' 클래스에 포함되어 있음
@@ -191,50 +199,12 @@ class NewsCrawlerEtnews:
         
         return "Content not found."
 
-    def run(self) -> List[Dict[str, str]]:
-        """
-        정의된 모든 섹션에 대해 크롤링을 실행하고 결과를 반환합니다.
-        :return: 수집된 전체 기사 데이터 리스트
-        """
-        logger.info("Start crawling etnews.com...")
-        all_articles_data = []
 
-        
-        section_url = self.base_url
-        section_name = self.target_section_en_dict[section_url.split('=')[-1]]
-        logger.info(f"Crawling section: {section_name} ({section_url})")
-        
-        # 1. 섹션 페이지 HTML 가져오기
-        list_page_html = self._fetch_html(section_url)
-        if not list_page_html:
-            logger.warning(f"Failed to fetch list page for section {section_name}. Skipping.")
-            return all_articles_data
-        
-        # 2. 기사 링크 목록 파싱하기
-        articles_to_crawl = self._parse_article_links(list_page_html)
-        logger.info(f"Found {len(articles_to_crawl)} articles in section {section_name}")
-        
-        # # 3. 각 기사 본문 수집하기
-        # for article_info in articles_to_crawl:
-        #     logger.info(f"  - Fetching content for: {article_info['title']}")
-            
-        #     article_html = self._fetch_html(article_info['url'])
-        #     if article_html:
-        #         content = self._parse_article_content(article_html)
-        #         article_info['content'] = content
-        #         all_articles_data.append(article_info)
-        #     else:
-        #         logger.warning(f"Failed to fetch content for {article_info['url']}")
-
-        #     # 서버 부하를 줄이기 위해 잠시 대기
-        #     time.sleep(0.5)
-        
-        # logger.info(f"Crawling finished. Total {len(all_articles_data)} articles collected.")
-        return all_articles_data
-    
 def main(target_section: str, base_ymd: str):
     """
     etnews 뉴스 수집 메인 배치 함수
+    :param str target_section: 뉴스 수집 대상 색션 (전자, SW, IT)
+    :param str base_ymd: 뉴스 수집 기준 일자 (yyyymmdd), 뉴스 수집 기본 일자 범위는 [T-3, T]
     """
     
     section_url_dict = {
@@ -255,13 +225,30 @@ def main(target_section: str, base_ymd: str):
     
     end_date = dt.datetime.strptime(base_ymd, "%Y%m%d")
     end_date = kst_timezone.localize(end_date) + dt.timedelta(hours=24)
-    start_date = end_date - dt.timedelta(days=3)
+    start_date = end_date - dt.timedelta(days=2)
     
     crawler = NewsCrawlerEtnews(ETNEWS_URL)
     crawler.set_target_date_range(start_date, end_date)
     
     try:
+        logger.info(f"--- Fetching recent articles from {ETNEWS_URL} ---")
         articles = crawler.fetch_articles(target_page_num=4)
+        
+        if articles:
+            logger.info(f"Found {len(articles)} recent articles.")
+            for i, article in enumerate(articles):
+                logger.info(f"\n--- Article {i + 1} ---")
+                logger.info(f"Title: {article['title']}")
+                logger.info(f"URL: {article['url']}")
+                logger.info(f"Published Date: {article['published_date']}")
+        
+                content = crawler.fetch_article_content(article['url'])
+                logger.info(f"Content Snippet (first 200 chars): {content[:200]}...")
+                article['content'] = content
+                time.sleep(random.randint(1, 3))
+                
+        else:
+            logger.warning("No recent articles found or an error occurred.")
         
         # 뉴스 데이터 json 파일로 저장 
         with open(f'{pjt_home_path}/data/etnews_{target_section_en}_articles.json', 'w', encoding='utf-8') as f:
@@ -277,4 +264,36 @@ def main(target_section: str, base_ymd: str):
 if __name__ == '__main__':
     import argparse
     
-    main(target_section='전자', base_ymd='20250908')
+    parser = argparse.ArgumentParser(
+        description="ETNews 뉴스 수집 메인 배치 함수"
+    )
+
+    # target_section 인자 추가
+    parser.add_argument(
+        "target_section",
+        type=str,        
+        default="전자",
+        choices=["전자", "IT", "SW",],
+        help="뉴스 수집 대상 색션 [%(choices)s] default=[%(default)s]",
+        metavar='target_section',
+        nargs='?'
+    )
+
+    # base_ymd 인자 추가
+    parser.add_argument(
+        "base_ymd",
+        type=str,
+        default=dt.datetime.now(kst_timezone).strftime("%Y%m%d"), # 기본값은 현재 날짜
+        help="뉴스 수집 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
+        nargs='?'
+    )
+
+    args = parser.parse_args()
+
+    # base_ymd 유효성 검증
+    try:
+        dt.datetime.strptime(args.base_ymd, "%Y%m%d")
+    except ValueError:
+        parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
+    
+    main(target_section=args.target_section, base_ymd=args.base_ymd)
