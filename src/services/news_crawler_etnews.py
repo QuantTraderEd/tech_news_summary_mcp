@@ -273,7 +273,7 @@ if __name__ == '__main__':
         "target_section",
         type=str,        
         default="전자",
-        choices=["전자", "IT", "SW",],
+        choices=["전자", "SW", "IT",],
         help="뉴스 수집 대상 색션 [%(choices)s] default=[%(default)s]",
         metavar='target_section',
         nargs='?'

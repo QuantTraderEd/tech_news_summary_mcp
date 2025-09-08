@@ -138,7 +138,7 @@ if __name__ == "__main__":
         "target_news_site",
         type=str,        
         default="zdnet",
-        choices=["zdnet", "thelec", ],
+        choices=["zdnet", "thelec", "etnews"],
         help="뉴스 수집 사이트 [%(choices)s] default=[%(default)s]",
         metavar='target_news_site',
         nargs='?'
