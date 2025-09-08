@@ -12,6 +12,10 @@ python3 $PWD/src/services/news_crawler_thelec.py 반도체 &&
 python3 $PWD/src/services/news_crawler_thelec.py 자동차 &&
 python3 $PWD/src/services/news_crawler_thelec.py 배터리 &&
 
+python3 $PWD/src/services/news_crawler_etnews.py 전자 &&
+python3 $PWD/src/services/news_crawler_etnews.py IT &&
+python3 $PWD/src/services/news_crawler_etnews.py SW &&
+
 echo 'finish news scrapping!!'
 
 # upload data json file to gcs
