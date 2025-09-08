@@ -27,6 +27,8 @@ from src.services import gcs_download_json
 
 from src.services import news_crawler_thelec
 from src.services import news_crawler_zdnet
+from src.services import news_crawler_etnews
+
 from src.services import news_summarizer
 from src.services import send_mail
 
@@ -197,8 +199,13 @@ def run_news_batch():
     news_crawler_thelec.main('자동차', base_ymd)
     news_crawler_thelec.main('배터리', base_ymd)
     
+    news_crawler_etnews.main('전자', base_ymd)
+    news_crawler_etnews.main('SW', base_ymd)
+    news_crawler_etnews.main('IT', base_ymd)
+    
     gcs_upload_json.main('zdnet', base_ymd)
     gcs_upload_json.main('thelec', base_ymd)
+    gcs_upload_json.main('etnews', base_ymd)
     
     news_summarizer.main(base_ymd)
     
