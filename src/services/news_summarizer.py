@@ -43,9 +43,8 @@ if not API_KEY:
 
 genai.configure(api_key=API_KEY)
 
-# Gemini 1.5 Flash 모델 로드 (혹은 'gemini-1.5-pro-latest')
-# Gemini 1.5 Flash는 'gemini-1.5-flash-latest' 또는 'gemini-1.5-flash'를 사용합니다.
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Gemini 2.0 Flash Lite 모델 로드
+model = genai.GenerativeModel('gemini-2.0-flash-lite')
 
 def summarize_news(news_item, num_sentences=3):
     """
