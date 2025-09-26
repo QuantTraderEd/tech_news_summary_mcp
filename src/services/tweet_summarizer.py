@@ -62,9 +62,8 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 
-# 사용할 Gemini 모델 설정 ('gemini-pro', 'gemini-1.5-flash')
-# 'gemini-1.5-flash'가 더 최신이고 빠르며 비용 효율적일 수 있습니다.
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Gemini 2.0 Flash Lite 모델 로드
+model = genai.GenerativeModel('gemini-2.0-flash-lite')
 
 # --- 2. 헬퍼 함수: Gemini API 호출 ---
 
