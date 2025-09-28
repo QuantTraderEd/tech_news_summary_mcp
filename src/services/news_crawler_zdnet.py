@@ -226,9 +226,13 @@ class NewsCrawler_ZDNet:
         ZDNet Korea의 HTML 구조에 맞춰져 있습니다.
         """
         logger.info(f"Fetching content for article: {article_url}")
+        try:
+            response = requests.get(article_url, headers=self.headers, timeout=10)
+            response.raise_for_status()
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout occurred while fetching content for {article_url}")
+            return "타임아웃으로 기사 내용을 찾을 수 없습니다."
         
-        response = requests.get(article_url, headers=self.headers, timeout=10)
-        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
         # 기사 내용이 담긴 div/p 태그를 찾습니다. 실제 선택자로 변경 필요
