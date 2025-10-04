@@ -146,7 +146,7 @@ class TweetScraper:
                 except TimeoutException:
                     logger.error("사용자 이름 확인 단계 후에도 비밀번호 필드를 찾을 수 없습니다. CAPTCHA 또는 예기치 않은 페이지일 수 있습니다.")
                     error_page_filename = "login_error_page.html"
-                    with open(error_page_filename, "w", encoding="utf-8") as f:
+                    with open(f"{pjt_home_path}/error_page_filename", "w", encoding="utf-8") as f:
                         f.write(self.driver.page_source)
                     logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
                     return False
