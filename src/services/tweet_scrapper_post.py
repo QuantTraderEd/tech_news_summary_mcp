@@ -106,50 +106,13 @@ class TweetScraper:
             # 1. 사용자 이름/이메일 입력
             user_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='text']")))
             user_input.send_keys(username)
-            time.sleep(5)
+            time.sleep(5)     # could not login now 방지용 
 
             # '다음' 버튼 클릭
             next_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
             next_button.click()
             logger.info("사용자 이름 입력 완료.")
             time.sleep(3)
-
-            # 1-1. 비밀번호 입력 또는 사용자 이름 확인 단계 처리
-            try:
-                # 대부분의 경우 바로 비밀번호 입력창이 나타납니다.
-                # 5초만 기다려보고, 없으면 확인 단계로 간주합니다.
-                short_wait = WebDriverWait(self.driver, 5)
-                next_input_xpath = "//input[@name='password'] | //input[@name='text']"
-                password_input = short_wait.until(
-                    EC.presence_of_element_located((By.XPATH, next_input_xpath)))
-                logger.info("비밀번호 입력창으로 바로 이동했습니다.")
-            except TimeoutException:
-                # 5초 안에 비밀번호 필드가 나타나지 않으면, 사용자 이름 확인 단계일 가능성이 높습니다.
-                logger.warning("비밀번호 필드를 즉시 찾지 못했습니다. 사용자 이름 확인 단계를 시도합니다.")
-                try:
-                    # 확인 단계의 입력 필드 (보통 name='text'를 재사용)
-                    user_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='text']")))
-                    logger.info("확인용 입력 필드를 찾았습니다. 사용자 이름을 다시 입력합니다.")
-                    user_input.send_keys(username)
-                    time.sleep(5)
-
-                    # 다시 '다음' 버튼 클릭
-                    next_button_verification = self.wait.until(
-                        EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
-                    next_button_verification.click()
-                    logger.info("사용자 이름 재입력 완료.")
-                    time.sleep(3)
-
-                    # 이제 진짜 비밀번호 필드가 나타날 때까지 기다립니다.
-                    password_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='password']")))
-
-                except TimeoutException:
-                    logger.error("사용자 이름 확인 단계 후에도 비밀번호 필드를 찾을 수 없습니다. CAPTCHA 또는 예기치 않은 페이지일 수 있습니다.")
-                    error_page_filename = "login_error_page.html"
-                    with open(f"{pjt_home_path}/error_page_filename", "w", encoding="utf-8") as f:
-                        f.write(self.driver.page_source)
-                    logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
-                    return False
 
             # [수정됨] 사용자 이름 확인 / 전화번호,이메일 인증 / 비밀번호 입력의 동적 단계를 처리
             try:
@@ -191,7 +154,7 @@ class TweetScraper:
                 logger.error("로그인 다음 단계의 입력 필드를 찾을 수 없습니다. CAPTCHA 또는 예상치 못한 페이지일 수 있습니다.")
                 error_page_filename = "login_error_page.html"
                 with open(error_page_filename, "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
+                    f.write(self.driver.page_source)
                 logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
                 return False
             
@@ -217,10 +180,14 @@ class TweetScraper:
             return True
 
         except (TimeoutException, NoSuchElementException) as e:
-            logger.warning("로그인 중 오류가 발생했습니다. CSS 선택자 또는 페이지 구조가 변경되었을 수 있습니다.", exc_info=True)
+            logger.error("로그인 중 오류가 발생했습니다. CSS 선택자 또는 페이지 구조가 변경되었을 수 있습니다.", exc_info=True)
+            error_page_filename = f"{pjt_home_path}/login_error_page.html"
+            with open(error_page_filename, "w", encoding="utf-8") as f:
+                f.write(self.driver.page_source)
+            logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
             return False
         except Exception as e:
-            logger.warning(f"예상치 못한 오류 발생: {e}", exc_info=True)
+            logger.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
             return False
 
     def parse_tweet_datetime(self, datetime_str: str) -> dt.datetime:
