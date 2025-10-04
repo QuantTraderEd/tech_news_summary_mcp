@@ -106,12 +106,13 @@ class TweetScraper:
             # 1. 사용자 이름/이메일 입력
             user_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='text']")))
             user_input.send_keys(username)
+            time.sleep(5)     # could not login now 방지용 
 
             # '다음' 버튼 클릭
             next_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
             next_button.click()
             logger.info("사용자 이름 입력 완료.")
-            time.sleep(1)
+            time.sleep(3)
 
             # [수정됨] 사용자 이름 확인 / 전화번호,이메일 인증 / 비밀번호 입력의 동적 단계를 처리
             try:
@@ -153,7 +154,7 @@ class TweetScraper:
                 logger.error("로그인 다음 단계의 입력 필드를 찾을 수 없습니다. CAPTCHA 또는 예상치 못한 페이지일 수 있습니다.")
                 error_page_filename = "login_error_page.html"
                 with open(error_page_filename, "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
+                    f.write(self.driver.page_source)
                 logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
                 return False
             
@@ -179,10 +180,14 @@ class TweetScraper:
             return True
 
         except (TimeoutException, NoSuchElementException) as e:
-            logger.warning("로그인 중 오류가 발생했습니다. CSS 선택자 또는 페이지 구조가 변경되었을 수 있습니다.", exc_info=True)
+            logger.error("로그인 중 오류가 발생했습니다. CSS 선택자 또는 페이지 구조가 변경되었을 수 있습니다.", exc_info=True)
+            error_page_filename = f"{pjt_home_path}/login_error_page.html"
+            with open(error_page_filename, "w", encoding="utf-8") as f:
+                f.write(self.driver.page_source)
+            logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
             return False
         except Exception as e:
-            logger.warning(f"예상치 못한 오류 발생: {e}", exc_info=True)
+            logger.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
             return False
 
     def parse_tweet_datetime(self, datetime_str: str) -> dt.datetime:
