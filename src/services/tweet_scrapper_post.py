@@ -89,8 +89,9 @@ class TweetScraper:
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
+        # 크롬 최신 버전으로 유지 필요 - 추후 fake-agent 활용 검토 필요
         options.add_argument(
-            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
         self.driver = webdriver.Chrome(service=service, options=options)
         self.wait = WebDriverWait(self.driver, 15)
 
@@ -106,13 +107,13 @@ class TweetScraper:
             # 1. 사용자 이름/이메일 입력
             user_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='text']")))
             user_input.send_keys(username)
-            time.sleep(5)     # could not login now 방지용 
+            time.sleep(2)
 
             # '다음' 버튼 클릭
             next_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
             next_button.click()
             logger.info("사용자 이름 입력 완료.")
-            time.sleep(3)
+            time.sleep(2)
 
             # [수정됨] 사용자 이름 확인 / 전화번호,이메일 인증 / 비밀번호 입력의 동적 단계를 처리
             try:
@@ -144,7 +145,7 @@ class TweetScraper:
                         logger.info("사용자 이름 재확인 단계를 진행합니다.")
                         next_input_element.send_keys(username)
                         self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
-                        logger.info("사용자 이름 재입력 완료.")
+                        logger.info("사용자 이름 재입력 완료....?!?")
 
                     # 위 단계를 거친 후, 최종적으로 비밀번호 입력창을 기다림
                     logger.info("비밀번호 필드를 기다립니다...")
