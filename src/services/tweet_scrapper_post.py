@@ -139,12 +139,32 @@ class TweetScraper:
                         next_input_element.send_keys(verification_info)
                         self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
                         logger.info(f"인증 정보(verification_info) 입력 완료!!!")
+                    elif "could not login" in page_text:
+                        # 시나리오 4: could not login 메세지 발생시 이메일 로그인 시도
+                        logger.warning("could not login 오류 메세지 발생. 이메일 로그인 시도")
+                        if not verification_info:
+                            logger.error("config.json에 'verification_info'가 필요하지만 설정되지 않았습니다.")
+                            return False
+
+                        # 이메일 로그인
+                        next_input_element.send_keys(verification_info)
+                        time.sleep(3)
+                        next_input_element.send_keys(verification_info)
+                        self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
+                        logger.info(f"이메일 입력 완료")
+
+                        user_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='text']")))
+                        user_input.send_keys(username)
+                        next_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
+                        next_button.click()
+                        logger.info("사용자 이름 입력 완료.")
+
                     else:
                         # 시나리오 2: 단순 사용자 이름 재확인
                         logger.info("사용자 이름 재확인 단계를 진행합니다.")
                         next_input_element.send_keys(username)
                         self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
-                        logger.info("사용자 이름 재입력 완료.")
+                        logger.info("사용자 이름 재입력 완료....?!?")
 
                     # 위 단계를 거친 후, 최종적으로 비밀번호 입력창을 기다림
                     logger.info("비밀번호 필드를 기다립니다...")
