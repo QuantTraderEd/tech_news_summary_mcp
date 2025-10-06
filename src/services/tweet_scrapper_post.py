@@ -5,6 +5,7 @@ import traceback
 import logging
 import time
 import json
+import random
 import datetime as dt
 
 import pytz
@@ -107,13 +108,13 @@ class TweetScraper:
             # 1. 사용자 이름/이메일 입력
             user_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='text']")))
             user_input.send_keys(username)
-            time.sleep(2)
+            time.sleep(random.randint(5, 8))
 
             # '다음' 버튼 클릭
             next_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
             next_button.click()
             logger.info("사용자 이름 입력 완료.")
-            time.sleep(2)
+            time.sleep(random.randint(3, 4))
 
             # [수정됨] 사용자 이름 확인 / 전화번호,이메일 인증 / 비밀번호 입력의 동적 단계를 처리
             try:
