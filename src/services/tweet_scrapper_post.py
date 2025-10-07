@@ -5,14 +5,18 @@ import traceback
 import logging
 import time
 import json
+import random
 import datetime as dt
 
 import pytz
+import undetected_chromedriver as uc
 
+from fake_useragent import UserAgent
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (TimeoutException,
@@ -64,6 +68,7 @@ class TweetScraper:
     def __init__(self):
         self.driver = None
         self.wait = None
+        self.actions = None
         self.end_date = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=24)
         self.start_date = self.end_date - dt.timedelta(days=2)
 
@@ -75,6 +80,14 @@ class TweetScraper:
         self.end_date = end_date
         logger.info(f"start_date=> {start_date}")
         logger.info(f"end_date=> {end_date}")
+
+    def human_like_typing(self, element, text):
+        """
+        사람처럼 타이핑하는 함수
+        """
+        for char in text:
+            element.send_keys(char)
+            time.sleep(random.uniform(0.1, 0.3))  # 각 글자 사이 0.1~0.3초 랜덤 딜레이
 
     def set_webdriver(self):
         # --- 드라이버 설정 및 로그인 (최초 한 번만 실행) ---
@@ -91,9 +104,10 @@ class TweetScraper:
         options.add_experimental_option('useAutomationExtension', False)
         # 크롬 최신 버전으로 유지 필요 - 추후 fake-agent 활용 검토 필요
         options.add_argument(
-            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
         self.driver = webdriver.Chrome(service=service, options=options)
         self.wait = WebDriverWait(self.driver, 15)
+        self.actions = ActionChains(self.driver)
 
     # --- 로그인 함수 ---
     def login_to_twitter(self, username: str, password: str, verification_info: str):
@@ -106,14 +120,17 @@ class TweetScraper:
 
             # 1. 사용자 이름/이메일 입력
             user_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='text']")))
-            user_input.send_keys(username)
-            time.sleep(2)
+            # 입력창으로 마우스 이동 후 클릭
+            self.actions.move_to_element(user_input).click().perform()
+            # user_input.send_keys(username)
+            self.human_like_typing(user_input, username)
+            time.sleep(random.uniform(1.5, 2.2))
 
             # '다음' 버튼 클릭
             next_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
-            next_button.click()
+            self.actions.move_to_element(next_button).click().perform()
             logger.info("사용자 이름 입력 완료.")
-            time.sleep(2)
+            time.sleep(random.uniform(1.0, 2.0))
 
             # [수정됨] 사용자 이름 확인 / 전화번호,이메일 인증 / 비밀번호 입력의 동적 단계를 처리
             try:
@@ -128,7 +145,7 @@ class TweetScraper:
                     logger.info("비밀번호 입력 단계로 바로 진행합니다.")
                     password_input = next_input_element
                 
-                else: # element_name == 'text'
+                elif element_name == 'text':
                     # 시나리오 2 또는 3: 사용자 이름 재확인 또는 전화/이메일 인증 단계
                     page_text = self.driver.find_element(By.TAG_NAME, 'body').text
                     if "unusual login activity" in page_text or "phone number or email" in page_text:
@@ -141,11 +158,9 @@ class TweetScraper:
                         self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
                         logger.info(f"인증 정보(verification_info) 입력 완료!!!")
                     else:
-                        # 시나리오 2: 단순 사용자 이름 재확인
-                        logger.info("사용자 이름 재확인 단계를 진행합니다.")
-                        next_input_element.send_keys(username)
-                        self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
-                        logger.info("사용자 이름 재입력 완료....?!?")
+                        # could not login in now.. try again later... 애러 발생 케이스
+                        logger.error("could not login in now.. try again later...!!!!")
+                        return False
 
                     # 위 단계를 거친 후, 최종적으로 비밀번호 입력창을 기다림
                     logger.info("비밀번호 필드를 기다립니다...")
