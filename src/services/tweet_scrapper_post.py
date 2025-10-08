@@ -208,6 +208,32 @@ class TweetScraper:
             logger.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
             return False
 
+    def login_to_tweeter(self):
+        try:
+            logger.info("X.com으로 이동합니다.")
+            self.driver.get("https://x.com")
+            time.sleep(3)
+
+            with open(f"{pjt_home_path}/tweet_cookies.json", "r") as file:
+                cookies = json.load(file)
+
+            for cookie in cookies:
+                # logger.info(cookie)
+                self.driver.add_cookie(cookie)
+
+            logger.info("쿠키 정보를 브라우저에 적용했습니다.")
+
+            self.driver.refresh()
+            logger.info("페이지를 새로고침하여 로그인 상태를 확인합니다.")
+            self.driver.get("https://x.com/home")
+            time.sleep(random.uniform(3.5, 5.3))
+
+        except Exception as e:
+            logger.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
+            return False
+
+        return True
+
     def parse_tweet_datetime(self, datetime_str: str) -> dt.datetime:
         """
         Tweet 날짜시간 문자열을 datetime 객체로 파싱합니다.
@@ -339,7 +365,7 @@ class TweetScraper:
             # 페이지 맨 아래로 스크롤하여 새 게시글을 로드합니다.
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             # 새 게시글이 로드될 때까지 잠시 기다립니다.
-            time.sleep(4)
+            time.sleep(random.uniform(3.7, 5.5))
 
             if skip_article_cnt >= 4:
                 logger.info(f"skip_article_cnt ==> {skip_article_cnt}")
@@ -408,7 +434,7 @@ def main(base_ymd: str):
         tweet_scraper.set_target_date_range(start_date, end_date)
         tweet_scraper.set_webdriver()
 
-        if not tweet_scraper.login_to_twitter(login_username, login_password, verification_info):
+        if not tweet_scraper.login_to_tweeter():
             raise Exception("로그인에 실패하여 스크립트를 중단합니다.")
 
         # --- 지정된 모든 사용자에 대해 스크래핑 실행 ---
