@@ -9,11 +9,14 @@ import random
 import datetime as dt
 
 import pytz
+import undetected_chromedriver as uc
 
+from fake_useragent import UserAgent
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (TimeoutException,
@@ -45,6 +48,7 @@ TARGET_USERNAMES = [
     "rwang07",
     "MooreMorrisSemi",
     "BenBajarin",
+    "OmerCheeema",
     "dnystedt",
     "SKundojjala",
     "SemiAnalysis_",
@@ -53,6 +57,7 @@ TARGET_USERNAMES = [
     "scaling01",
     "danielnewmanUV",
     "The_AI_Investor",
+    "SawyerMerritt",
     "wallstengine"
     ]
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
@@ -65,6 +70,7 @@ class TweetScraper:
     def __init__(self):
         self.driver = None
         self.wait = None
+        self.actions = None
         self.end_date = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=24)
         self.start_date = self.end_date - dt.timedelta(days=2)
 
@@ -76,6 +82,14 @@ class TweetScraper:
         self.end_date = end_date
         logger.info(f"start_date=> {start_date}")
         logger.info(f"end_date=> {end_date}")
+
+    def human_like_typing(self, element, text):
+        """
+        사람처럼 타이핑하는 함수
+        """
+        for char in text:
+            element.send_keys(char)
+            time.sleep(random.uniform(0.1, 0.3))  # 각 글자 사이 0.1~0.3초 랜덤 딜레이
 
     def set_webdriver(self):
         # --- 드라이버 설정 및 로그인 (최초 한 번만 실행) ---
@@ -92,9 +106,10 @@ class TweetScraper:
         options.add_experimental_option('useAutomationExtension', False)
         # 크롬 최신 버전으로 유지 필요 - 추후 fake-agent 활용 검토 필요
         options.add_argument(
-            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
         self.driver = webdriver.Chrome(service=service, options=options)
         self.wait = WebDriverWait(self.driver, 15)
+        self.actions = ActionChains(self.driver)
 
     # --- 로그인 함수 ---
     def login_to_twitter(self, username: str, password: str, verification_info: str):
@@ -107,14 +122,17 @@ class TweetScraper:
 
             # 1. 사용자 이름/이메일 입력
             user_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@name='text']")))
-            user_input.send_keys(username)
-            time.sleep(random.randint(5, 8))
+            # 입력창으로 마우스 이동 후 클릭
+            self.actions.move_to_element(user_input).click().perform()
+            # user_input.send_keys(username)
+            self.human_like_typing(user_input, username)
+            time.sleep(random.uniform(1.5, 2.2))
 
             # '다음' 버튼 클릭
             next_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]")))
-            next_button.click()
+            self.actions.move_to_element(next_button).click().perform()
             logger.info("사용자 이름 입력 완료.")
-            time.sleep(random.randint(3, 4))
+            time.sleep(random.uniform(1.0, 2.0))
 
             # [수정됨] 사용자 이름 확인 / 전화번호,이메일 인증 / 비밀번호 입력의 동적 단계를 처리
             try:
@@ -129,7 +147,7 @@ class TweetScraper:
                     logger.info("비밀번호 입력 단계로 바로 진행합니다.")
                     password_input = next_input_element
                 
-                else: # element_name == 'text'
+                elif element_name == 'text':
                     # 시나리오 2 또는 3: 사용자 이름 재확인 또는 전화/이메일 인증 단계
                     page_text = self.driver.find_element(By.TAG_NAME, 'body').text
                     if "unusual login activity" in page_text or "phone number or email" in page_text:
@@ -142,11 +160,9 @@ class TweetScraper:
                         self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
                         logger.info(f"인증 정보(verification_info) 입력 완료!!!")
                     else:
-                        # 시나리오 2: 단순 사용자 이름 재확인
-                        logger.info("사용자 이름 재확인 단계를 진행합니다.")
-                        next_input_element.send_keys(username)
-                        self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
-                        logger.info("사용자 이름 재입력 완료....?!?")
+                        # could not login in now.. try again later... 애러 발생 케이스
+                        logger.error("could not login in now.. try again later...!!!!")
+                        return False
 
                     # 위 단계를 거친 후, 최종적으로 비밀번호 입력창을 기다림
                     logger.info("비밀번호 필드를 기다립니다...")
@@ -191,6 +207,32 @@ class TweetScraper:
         except Exception as e:
             logger.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
             return False
+
+    def login_to_tweeter(self):
+        try:
+            logger.info("X.com으로 이동합니다.")
+            self.driver.get("https://x.com")
+            time.sleep(3)
+
+            with open(f"{pjt_home_path}/tweet_cookies.json", "r") as file:
+                cookies = json.load(file)
+
+            for cookie in cookies:
+                # logger.info(cookie)
+                self.driver.add_cookie(cookie)
+
+            logger.info("쿠키 정보를 브라우저에 적용했습니다.")
+
+            self.driver.refresh()
+            logger.info("페이지를 새로고침하여 로그인 상태를 확인합니다.")
+            self.driver.get("https://x.com/home")
+            time.sleep(random.uniform(3.5, 5.3))
+
+        except Exception as e:
+            logger.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
+            return False
+
+        return True
 
     def parse_tweet_datetime(self, datetime_str: str) -> dt.datetime:
         """
@@ -323,7 +365,7 @@ class TweetScraper:
             # 페이지 맨 아래로 스크롤하여 새 게시글을 로드합니다.
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             # 새 게시글이 로드될 때까지 잠시 기다립니다.
-            time.sleep(4)
+            time.sleep(random.uniform(3.7, 5.5))
 
             if skip_article_cnt >= 4:
                 logger.info(f"skip_article_cnt ==> {skip_article_cnt}")
@@ -392,7 +434,7 @@ def main(base_ymd: str):
         tweet_scraper.set_target_date_range(start_date, end_date)
         tweet_scraper.set_webdriver()
 
-        if not tweet_scraper.login_to_twitter(login_username, login_password, verification_info):
+        if not tweet_scraper.login_to_tweeter():
             raise Exception("로그인에 실패하여 스크립트를 중단합니다.")
 
         # --- 지정된 모든 사용자에 대해 스크래핑 실행 ---

@@ -200,7 +200,7 @@ def create_email_body(posts_data):
                 <div class="post-header">게시일시: {created_at}</div>
                 <div class="post-text"><strong>원문:</strong> {original_text}</div>
                 {main_content_html}
-                <p><a href="{url}" class="post-link">원본 게시물 보기</a></p>
+                <p><a href="{url}" class="post-link">{url}</a></p>
             </div>
         """
         
