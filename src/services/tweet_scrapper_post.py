@@ -219,6 +219,15 @@ class TweetScraper:
 
             for cookie in cookies:
                 # logger.info(cookie)
+
+                if 'sameSite' in cookie:
+                    if cookie['sameSite'] not in ['Strict', 'Lax', 'None']:
+                        del cookie['sameSite']
+
+                if 'expirationDate' in cookie:
+                    cookie['expiry'] = int(cookie['expirationDate'])
+                    del cookie['expirationDate']
+
                 self.driver.add_cookie(cookie)
 
             logger.info("쿠키 정보를 브라우저에 적용했습니다.")

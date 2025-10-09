@@ -83,6 +83,20 @@ try:
     # 3. 불러온 쿠키를 현재 브라우저 세션에 추가합니다.
     for cookie in cookies:
         # logger.info(cookie)
+
+        # 'sameSite' 속성 문제 해결
+        if 'sameSite' in cookie:
+            if cookie['sameSite'] not in ['Strict', 'Lax', 'None']:
+                # 유효하지 않은 sameSite 값이면 해당 키를 제거
+                del cookie['sameSite']
+
+        # 'expiry' 키 이름 및 타입 문제 해결
+        if 'expirationDate' in cookie:
+            # 키 이름을 'expiry'로 변경
+            cookie['expiry'] = int(cookie['expirationDate'])
+            # 기존 'expirationDate' 키는 제거
+            del cookie['expirationDate']
+
         driver.add_cookie(cookie)
 
     logger.info("쿠키 정보를 브라우저에 적용했습니다.")
