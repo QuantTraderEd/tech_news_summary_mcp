@@ -214,6 +214,12 @@ def run_news_batch():
     
 def run_tweet_batch():
     base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
+
+    gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
+                                            bucket_name='gcs-private-pjt-data',
+                                            gcs_base_path='config',
+                                            date_str='20000101',
+                                            local_file_path=pjt_home_path)
     
     tweet_scrapper_post.main(base_ymd)
     gcs_upload_json.main_tweet(base_ymd)
