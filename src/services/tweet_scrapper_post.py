@@ -49,6 +49,7 @@ TARGET_USERNAMES = [
     "MooreMorrisSemi",
     "BenBajarin",
     "OmerCheeema",
+    "lithos_graphein",
     "dnystedt",
     "SKundojjala",
     "SemiAnalysis_",
