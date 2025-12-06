@@ -47,6 +47,7 @@ kst_timezone = pytz.timezone('Asia/Seoul')
 TARGET_USERNAMES = [
     "rwang07",
     "MooreMorrisSemi",
+    "insane_analyst",
     "BenBajarin",
     "OmerCheeema",
     "lithos_graphein",
@@ -59,7 +60,8 @@ TARGET_USERNAMES = [
     "danielnewmanUV",
     "The_AI_Investor",
     "SawyerMerritt",
-    "wallstengine"
+    "wallstengine",
+    "DrNHJ",
     ]
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
