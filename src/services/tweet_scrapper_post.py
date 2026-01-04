@@ -54,6 +54,7 @@ TARGET_USERNAMES = [
     "dnystedt",
     "SKundojjala",
     "SemiAnalysis_",
+    "semivision_tw",
     "artificialanlys",
     "kimmonismus",
     "scaling01",
