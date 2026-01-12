@@ -412,9 +412,12 @@ class TweetScraper:
     def upload_posts_json_to_gcs(self, target_username: str, base_ymd: str):
         local_data_dir = f'{pjt_home_path}/data'
         filename = f"{target_username}_posts.json"
-        try:        
-            
-            local_file_path = os.path.join(local_data_dir, filename)
+        local_file_path = os.path.join(local_data_dir, filename)
+        
+        if not os.path.exists(local_file_path):
+            logger.warning(f"{filename} 파일이 없습니다!")
+        
+        try:                
             gcs_upload_json.upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
             
         except Exception as e:            
