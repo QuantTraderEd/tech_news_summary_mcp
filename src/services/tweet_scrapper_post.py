@@ -408,11 +408,24 @@ class TweetScraper:
                 logger.warning(f"-> '{output_filename}' 파일 저장 중 오류 발생: {e}", exc_info=True)
         else:
             logger.warning(f"[{target_username}] 님의 게시글을 수집하지 못했습니다.")
+            
+    def upload_posts_json_to_gcs(self, target_username: str, base_ymd: str):
+        local_data_dir = f'{pjt_home_path}/data'
+        filename = f"{target_username}_posts.json"
+        try:        
+            
+            local_file_path = os.path.join(local_data_dir, filename)
+            gcs_upload_json.upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
+            
+        except Exception as e:            
+            logger.error(f"{filename} 업로드 중 오류 발생: {e}", exc_info=True)
 
 
-def main(base_ymd: str):
+def main(base_ymd: str, posts_json_upload: bool = False):
     """
     tweet post 수집의 메인 실행 함수.
+    :param str base_ymd: post 수집 기준 일자 (yyyymmdd)
+    :param bool posts_json_upload: posts.json 파일 GCS 업로드 여부
     """
     tweet_scraper = None
     try:
@@ -452,7 +465,9 @@ def main(base_ymd: str):
 
         # --- 지정된 모든 사용자에 대해 스크래핑 실행 ---
         for user in TARGET_USERNAMES:
-            tweet_scraper.scrape_user_post(user)            
+            tweet_scraper.scrape_user_post(user)
+            if posts_json_upload:
+                tweet_scraper.upload_posts_json_to_gcs(user, base_ymd)
 
         # 모든 작업이 끝나면 브라우저 종료
         if tweet_scraper.driver: tweet_scraper.driver.quit()
@@ -490,4 +505,4 @@ if __name__ == "__main__":
     except ValueError:
         parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
 
-    main(base_ymd=args.base_ymd)
+    main(base_ymd=args.base_ymd, posts_json_upload=False)
