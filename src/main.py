@@ -221,8 +221,7 @@ def run_tweet_batch():
                                             date_str='20000101',
                                             local_file_path=pjt_home_path)
     
-    tweet_scrapper_post.main(base_ymd)
-    gcs_upload_json.main_tweet(base_ymd)
+    tweet_scrapper_post.main(base_ymd, True)
     tweet_summarizer.main(base_ymd)
     
     pwd = os.environ.get('NVR_MAIL_PWD')
