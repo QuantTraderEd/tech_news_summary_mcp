@@ -424,13 +424,21 @@ class TweetScraper:
             logger.error(f"{filename} 업로드 중 오류 발생: {e}", exc_info=True)
 
 
-def main(base_ymd: str, posts_json_upload: bool = False):
+def main(base_ymd: str, posts_json_upload: bool = False, tweet_username: str = None):
     """
     tweet post 수집의 메인 실행 함수.
     :param str base_ymd: post 수집 기준 일자 (yyyymmdd)
     :param bool posts_json_upload: posts.json 파일 GCS 업로드 여부
+    :param str tweet_username: 조회하고 싶은 트위터 사용자 아이디
     """
     tweet_scraper = None
+    
+    logger.info("==== input param ====")
+    logger.info(f"base_ymd => {base_ymd}")
+    logger.info(f"posts_json_upload => {posts_json_upload}")
+    logger.info(f"tweet_username => {tweet_username}")
+    logger.info("=====================")
+    
     try:
         # 날짜 범위 설정
         end_date = dt.datetime.strptime(base_ymd, "%Y%m%d")
@@ -466,7 +474,10 @@ def main(base_ymd: str, posts_json_upload: bool = False):
         if not tweet_scraper.login_to_tweeter():
             raise Exception("로그인에 실패하여 스크립트를 중단합니다.")
 
-        # --- 지정된 모든 사용자에 대해 스크래핑 실행 ---
+        # --- 지정된 사용자가 없으면 모든 사용자에 대해 스크래핑 실행 ---
+        if tweet_username:
+            TARGET_USERNAMES = [tweet_username]
+
         for user in TARGET_USERNAMES:
             tweet_scraper.scrape_user_post(user)
             if posts_json_upload:
