@@ -173,6 +173,10 @@ async def execute_batch(backgroundtasks: BackgroundTasks, payload: BatchParams):
         elif batch_type == 'tweet_rerun':
             base_ymd = params.get('base_ymd', None)
             backgroundtasks.add_task(run_tweet_rerun_batch, base_ymd)
+        elif batch_type == "tweet_single_user":
+            base_ymd = params.get('base_ymd', None)
+            tweet_username = params.get('tweet_username', None)
+            backgroundtasks.add_task(run_tweet_single_user_batch, base_ymd, tweet_username)
         else:
             msg = f"Error: Unknown batch type '{batch_type}'."
             logger.warning(msg)
@@ -241,6 +245,20 @@ def run_tweet_rerun_batch(base_ymd=None):
     send_mail_tweet.main(pwd)
 
     count_tweet_posts()
+    
+def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
+    
+    if not base_ymd:
+        base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
+        
+    gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
+                                            bucket_name='gcs-private-pjt-data',
+                                            gcs_base_path='config',
+                                            date_str='20000101',
+                                            local_file_path=pjt_home_path)
+    
+    tweet_scrapper_post.main(base_ymd, True, tweet_username)
+
 
 def count_tweet_posts():
     """
