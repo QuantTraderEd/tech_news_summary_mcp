@@ -48,21 +48,21 @@ TARGET_USERNAMES = [
     "rwang07",
     "MooreMorrisSemi",
     "insane_analyst",
-    "BenBajarin",
-    "OmerCheeema",
-    "lithos_graphein",
-    "dnystedt",
-    "SKundojjala",
-    "SemiAnalysis_",
-    "semivision_tw",
-    "artificialanlys",
-    "kimmonismus",
-    "scaling01",
-    "danielnewmanUV",
-    "The_AI_Investor",
-    "SawyerMerritt",
-    "wallstengine",
-    "DrNHJ",
+    # "BenBajarin",
+    # "OmerCheeema",
+    # "lithos_graphein",
+    # "dnystedt",
+    # "SKundojjala",
+    # "SemiAnalysis_",
+    # "semivision_tw",
+    # "artificialanlys",
+    # "kimmonismus",
+    # "scaling01",
+    # "danielnewmanUV",
+    # "The_AI_Investor",
+    # "SawyerMerritt",
+    # "wallstengine",
+    # "DrNHJ",
     ]
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
@@ -476,6 +476,7 @@ def main(base_ymd: str, posts_json_upload: bool = False, tweet_username: str = N
 
         # --- 지정된 사용자가 없으면 모든 사용자에 대해 스크래핑 실행 ---
         if tweet_username:
+            global TARGET_USERNAMES 
             TARGET_USERNAMES = [tweet_username]
 
         for user in TARGET_USERNAMES:
