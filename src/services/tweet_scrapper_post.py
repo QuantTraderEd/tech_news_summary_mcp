@@ -476,6 +476,7 @@ def main(base_ymd: str, posts_json_upload: bool = False, tweet_username: str = N
 
         # --- 지정된 사용자가 없으면 모든 사용자에 대해 스크래핑 실행 ---
         if tweet_username:
+            user = tweet_username
             tweet_scraper.scrape_user_post(user)
             if posts_json_upload:
                     tweet_scraper.upload_posts_json_to_gcs(user, base_ymd)
