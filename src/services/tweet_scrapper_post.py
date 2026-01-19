@@ -46,16 +46,18 @@ kst_timezone = pytz.timezone('Asia/Seoul')
 # 조회하고 싶은 트위터 사용자 아이디 목록을 리스트로 입력하세요.
 TARGET_USERNAMES = [
     "rwang07",
-    "MooreMorrisSemi",
+    # "MooreMorrisSemi",    # 미활동 계정 
     "insane_analyst",
     "BenBajarin",
     "OmerCheeema",
     "lithos_graphein",
+    "DrFrederickChen",
     "dnystedt",
     "SKundojjala",
     "SemiAnalysis_",
     "semivision_tw",
     "artificialanlys",
+    "EpochAIResearch",
     "kimmonismus",
     "scaling01",
     "danielnewmanUV",
