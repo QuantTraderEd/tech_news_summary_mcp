@@ -55,17 +55,22 @@ TARGET_USERNAMES = [
     "dnystedt",
     "SKundojjala",
     "SemiAnalysis_",
-    "semivision_tw",
     "artificialanlys",
     "EpochAIResearch",
     "kimmonismus",
     "scaling01",
+    "mweinbach",
     "danielnewmanUV",
     "The_AI_Investor",
     "SawyerMerritt",
     "wallstengine",
+ ]
+
+TARGET_USERNAMES_2ND = [
+    "semivision_tw",
     "DrNHJ",
-    ]
+]
+
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
 # 설정 파일 이름
@@ -426,12 +431,17 @@ class TweetScraper:
             logger.error(f"{filename} 업로드 중 오류 발생: {e}", exc_info=True)
 
 
-def main(base_ymd: str, posts_json_upload: bool = False, tweet_username: str = None):
+def main(base_ymd: str,
+         posts_json_upload: bool = False,
+         tweet_username: str = None,
+         tweet_usernames: list = TARGET_USERNAMES,
+         ):
     """
     tweet post 수집의 메인 실행 함수.
     :param str base_ymd: post 수집 기준 일자 (yyyymmdd)
     :param bool posts_json_upload: posts.json 파일 GCS 업로드 여부
     :param str tweet_username: 조회하고 싶은 트위터 사용자 아이디
+    :param list tweet_usernames: 조회하고 싶은 트위터 사용자 아이디 목록, tweet_username 값이 있으면 해당 값이 우선순위로 처리
     """
     tweet_scraper = None
     
@@ -439,6 +449,7 @@ def main(base_ymd: str, posts_json_upload: bool = False, tweet_username: str = N
     logger.info(f"base_ymd => {base_ymd}")
     logger.info(f"posts_json_upload => {posts_json_upload}")
     logger.info(f"tweet_username => {tweet_username}")
+    logger.info(f"tweet_usernames => {tweet_usernames}")
     logger.info("=====================")
     
     try:
@@ -484,7 +495,7 @@ def main(base_ymd: str, posts_json_upload: bool = False, tweet_username: str = N
                     tweet_scraper.upload_posts_json_to_gcs(user, base_ymd)
 
         else:
-            for user in TARGET_USERNAMES:
+            for user in tweet_usernames:
                 tweet_scraper.scrape_user_post(user)
                 if posts_json_upload:
                     tweet_scraper.upload_posts_json_to_gcs(user, base_ymd)

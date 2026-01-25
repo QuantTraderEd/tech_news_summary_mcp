@@ -155,16 +155,23 @@ def process_posts(input_filename: str, summarized_posts: list):
         summarized_posts.append(post)
 
 # --- 3. 메인 로직 ---
-def main(base_ymd: str, gcs_mode: bool = True):
+def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
     """
-    메인 실행 함수
+    번역&요약 스크립트 메인 실행 함수
+    :param str base_ymd: post 수집 기준 일자 (yyyymmdd)
+    :param bool gcs_mode: GCS 사용 여부
+    :param list tweet_usernames: 변역&요약 할 tweet 유저이름 list (default: None)
     """
     logger.info("="*50)
     logger.info("Tweet 번역&요약 스크립트를 시작합니다.")
     
     summarized_posts = []
-    
-    tweet_source_list = tweet_scrapper_post.TARGET_USERNAMES
+
+    if tweet_usernames is None:
+        tweet_source_list = tweet_scrapper_post.TARGET_USERNAMES
+    else:
+        tweet_source_list = tweet_usernames
+
     # tweet_source_list = ['tweet_agg_one']
     
     try:
