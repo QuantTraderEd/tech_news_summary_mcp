@@ -250,7 +250,7 @@ def run_tweet_2nd_batch():
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail_tweet.main(pwd)
 
-    count_tweet_posts()
+    count_tweet_posts(tweet_usernames=tweet_scrapper_post.TARGET_USERNAMES_2ND)
     
 def run_tweet_rerun_batch(base_ymd=None):
 
@@ -279,16 +279,20 @@ def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
     tweet_scrapper_post.main(base_ymd, True, tweet_username)
 
 
-def count_tweet_posts():
+def count_tweet_posts(tweet_usernames: list = None):
     """
     로컬 data 디렉토리에 저장된 파일을 기준으로 카운트합니다.
+    :param list tweet_usernames: 수집 대상 트위터 사용자 아이디 목록
     """
 
     # 데이터가 저장된 기본 경로를 설정합니다.
     data_path = os.path.join(pjt_home_path, 'data')
 
     # tweet_scrapper_post 모듈에서 타겟 사용자 리스트를 가져옵니다.
-    target_users = tweet_scrapper_post.TARGET_USERNAMES
+    if tweet_usernames is None:
+        target_users = tweet_scrapper_post.TARGET_USERNAMES
+    else:
+        target_users = tweet_usernames
 
     post_counts = {}
     logger.info(f"Counting tweet posts...")
