@@ -43,8 +43,8 @@ if not API_KEY:
 
 genai.configure(api_key=API_KEY)
 
-# Gemini 2.0 Flash Lite 모델 로드
-model = genai.GenerativeModel('gemini-2.0-flash-lite')
+# Gemini 2.5 Flash Lite 모델 로드
+model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 def summarize_news(news_item, num_sentences=3):
     """

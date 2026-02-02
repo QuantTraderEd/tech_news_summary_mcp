@@ -19,9 +19,9 @@ with open(f'{pjt_home_path}/config.json', 'r') as config_file:
 # Gemini API 키 설정
 genai.configure(api_key=api_key)
 
-# 모델 선택 (예: Gemini 1.5 Flash)
+# 모델 선택 (예: Gemini 2.5 Flash Lite)
 # https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions
-model = genai.GenerativeModel('gemini-2.0-flash-lite')
+model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 @pytest.mark.skip('need API KEY')
 def test_call_gemini_api():
