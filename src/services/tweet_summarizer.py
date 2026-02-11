@@ -191,6 +191,11 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
                                                      date_str=base_ymd)
 
         logger.info(f"✅ 신규 Tweet 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
+        
+        # 임시 테스트 코드
+        # with open(output_filename, 'r', encoding='utf-8') as f:
+        #     summarized_posts = json.load(f)
+        
 
         output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts_agg.json')
 
@@ -200,19 +205,19 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
 
             if ret == 0:
                 with open(output_filename, 'r', encoding='utf-8') as f:
-                    summarized_old_posts = json.load(f)
-                    logger.info(f"summarized_posts (old-agg) cnt => {len(summarized_old_posts)}")
+                    summarized_old_posts_agg = json.load(f)
+                    logger.info(f"summarized_posts (old-agg) cnt => {len(summarized_old_posts_agg)}")
 
                 logger.info(f"summarized_posts cnt => {len(summarized_posts)}")
-                summarized_posts = summarized_posts + summarized_old_posts
-                logger.info(f"summarized_posts (agg) cnt => {len(summarized_posts)}")
+                summarized_posts_agg = summarized_posts + summarized_old_posts_agg
+                logger.info(f"summarized_posts (agg) cnt => {len(summarized_posts_agg)}")
 
                 # 중복 제거 함수 호출
-                summarized_posts = remove_duplicate_posts(summarized_posts)
-                logger.info(f"summarized_posts (agg-non-dup) cnt => {len(summarized_posts)}")
+                summarized_posts_agg = remove_duplicate_posts(summarized_posts_agg)
+                logger.info(f"summarized_posts (agg-non-dup) cnt => {len(summarized_posts_agg)}")
 
             with open(output_filename, 'w', encoding='utf-8') as f:
-                json.dump(summarized_posts, f, ensure_ascii=False, indent=4)
+                json.dump(summarized_posts_agg, f, ensure_ascii=False, indent=4)
 
             # json 파일 GCS 에 업로드
             gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
@@ -220,6 +225,48 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
 
             logger.info(f"✅ 통합 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
             logger.info("="*50)
+            
+            # (base_ymd - 1)/summarized_posts_agg.json 파일 다운로드
+            base_ymd_prev = (dt.datetime.strptime(base_ymd, "%Y%m%d") - dt.timedelta(days=1)).strftime("%Y%m%d")
+            ret = gcs_download_json.download_gcs_to_local(file_name='summarized_posts_agg.json', date_str=base_ymd_prev)
+            logger.info(f"download_gcs_to_local ret {base_ymd_prev}/summarized_posts_agg.json for => {ret}")
+            
+            # (base_ymd - 1)/summarized_posts_agg.json 파일 과 (base_ymd)/summarized_posts_agg.json (업데이트하기 전) 파일 합체
+            summarized_prev_posts_agg = []
+            with open(output_filename, 'r', encoding='utf-8') as f:
+                summarized_prev_posts_agg = json.load(f)
+                logger.info("loaded summarized_prev_posts_agg.json!!")
+                logger.info(f"summarized_prev_posts_agg cnt => {len(summarized_prev_posts_agg)}")
+                
+            summarized_union_posts_agg = summarized_prev_posts_agg # + summarized_old_posts_agg  # 우선 prev_post_agg 파일만 적용
+            
+            union_urls = {post.get('url') for post in summarized_union_posts_agg if post.get('url')}
+            logger.info(f"union_urls cnt => {len(union_urls)}")
+                
+            # 합체한 agg.json의 url과 비교하여 summarized_posts의 중복 url에 태그 처리
+            dup_url_cnt = 0
+            for post in summarized_posts:
+                if post.get('url') in union_urls:
+                    dup_url_cnt += 1
+                    if post.get('title'):
+                        post['title'] = f"[중복] {post['title']}"                        
+                    elif post.get('translated_text'):
+                        post['translated_text'] = f"[중복] {post['translated_text']}"
+                        
+            logger.info(f"summarized_posts dup_url_cnt => {dup_url_cnt}")
+            
+            # 중복 url에 태그 처리된 summarized_posts 저장 및 업로드
+            output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
+
+            with open(output_filename, 'w', encoding='utf-8') as f:
+                json.dump(summarized_posts, f, ensure_ascii=False, indent=4)
+                
+            gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
+                                                     date_str=base_ymd)
+
+            logger.info(f"✅ 중복 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
+            logger.info("="*50)
+            
         
     except Exception as e:
         msg = traceback.format_exc()
