@@ -215,6 +215,8 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
                 # 중복 제거 함수 호출
                 summarized_posts_agg = remove_duplicate_posts(summarized_posts_agg)
                 logger.info(f"summarized_posts (agg-non-dup) cnt => {len(summarized_posts_agg)}")
+            else:
+                summarized_posts_agg = summarized_posts
 
             with open(output_filename, 'w', encoding='utf-8') as f:
                 json.dump(summarized_posts_agg, f, ensure_ascii=False, indent=4)
