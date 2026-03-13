@@ -57,18 +57,18 @@ TARGET_USERNAMES = [
     "SKundojjala",
     "SemiAnalysis_",
     "artificialanlys",
-    "EpochAIResearch",
-    "kimmonismus",
+    "EpochAIResearch",    
     "scaling01",
     "mweinbach",
-    "danielnewmanUV",
-    "The_AI_Investor",
+    "danielnewmanUV",    
     "SawyerMerritt",
     "wallstengine",
  ]
 
 TARGET_USERNAMES_2ND = [
     "semivision_tw",
+    "kimmonismus",
+    "The_AI_Investor",
     "DrNHJ",
 ]
 
