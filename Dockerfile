@@ -1,5 +1,5 @@
-# 기본 이미지로 python:3.10-slim을 사용합니다.
-FROM python:3.10-slim
+# 기본 이미지로 python:3.12-slim을 사용합니다.
+FROM python:3.12-slim
 
 # 작업 디렉토리를 /app으로 설정합니다.
 WORKDIR /app
