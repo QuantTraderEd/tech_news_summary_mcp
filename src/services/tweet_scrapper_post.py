@@ -60,8 +60,8 @@ TARGET_USERNAMES = [
     "EpochAIResearch",    
     "scaling01",
     "mweinbach",
-    "danielnewmanUV",    
-    "SawyerMerritt",
+    "danielnewmanUV",
+    "sssjeffpu",
     "wallstengine",
  ]
 
@@ -70,6 +70,7 @@ TARGET_USERNAMES_2ND = [
     "kimmonismus",
     "The_AI_Investor",
     "DrNHJ",
+    "SawyerMerritt",
 ]
 
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
