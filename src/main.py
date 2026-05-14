@@ -231,7 +231,7 @@ def run_tweet_batch():
     tweet_summarizer.main(base_ymd)
     
     pwd = os.environ.get('NVR_MAIL_PWD')
-    send_mail_tweet.main(pwd)
+    send_mail_tweet.main(pwd, base_ymd)
 
     count_tweet_posts()
 
@@ -248,7 +248,7 @@ def run_tweet_2nd_batch():
     tweet_summarizer.main(base_ymd, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
 
     pwd = os.environ.get('NVR_MAIL_PWD')
-    send_mail_tweet.main(pwd)
+    send_mail_tweet.main(pwd, base_ymd)
 
     count_tweet_posts(tweet_usernames=tweet_scrapper_post.TARGET_USERNAMES_2ND)
     
@@ -261,7 +261,7 @@ def run_tweet_rerun_batch(base_ymd=None):
     tweet_summarizer.main(base_ymd)
 
     pwd = os.environ.get('NVR_MAIL_PWD')
-    send_mail_tweet.main(pwd)
+    send_mail_tweet.main(pwd, base_ymd)
 
     count_tweet_posts()
     
