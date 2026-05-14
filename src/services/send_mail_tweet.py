@@ -23,6 +23,7 @@ pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
 from src.services import send_mail
+from src.services import gcs_upload_json
 
 # 로깅 설정
 logger = logging.getLogger(__file__)
@@ -244,7 +245,7 @@ def send_email_with_tweet(sender_email, sender_password, receiver_email_list, ma
 
     mail_server.quit()
     
-def main(pwd: str):
+def main(pwd: str, base_ymd: str = None):
     # 사용자 정보 설정 (실제 정보로 변경 필요)
     SENDER_EMAIL = ""  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
     SENDER_PASSWORD = pwd + 'CH'   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
@@ -256,6 +257,9 @@ def main(pwd: str):
         logger.error("RECEIVER_EMAIL_LIST is empty!!") 
         sys.exit(1)
         
+    if not base_ymd:
+        base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")
+
     SENDER_EMAIL = RECEIVER_EMAIL_LIST[0]
     
     if pwd == "":
@@ -271,6 +275,19 @@ def main(pwd: str):
         if summarized_posts:
             # 이메일 본문 생성
             email_body_html = create_email_body(summarized_posts)
+
+            # HTML 내용을 파일로 저장
+            output_html_path = f"{pjt_home_path}/data/summarized_posts.html"
+            try:
+                with open(output_html_path, 'w', encoding='utf-8') as f:
+                    f.write(email_body_html)
+                logger.info(f"이메일 본문을 '{output_html_path}' 파일로 성공적으로 저장했습니다.")
+
+                # GCS 업로드 추가
+                gcs_upload_json.upload_local_file_to_gcs(output_html_path, date_str=base_ymd)
+            except Exception as e:
+                logger.warning(f"이메일 본문 파일 저장 또는 GCS 업로드 중 오류 발생: {e}")
+
             # 이메일 발송
             mail_subject = '=== 최신 반도체/AI/테크 Tweet 요약 ===' # 메일 제목 정의
             send_email_with_tweet(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, mail_subject, email_body_html)
