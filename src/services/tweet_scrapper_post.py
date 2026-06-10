@@ -50,7 +50,7 @@ TARGET_USERNAMES = [
     # "MooreMorrisSemi",    # 미활동 계정 
     "insane_analyst",
     "BenBajarin",
-    "OmerCheeema",
+    "OmerCheema",
     "lithos_graphein",
     "DrFrederickChen",
     "dnystedt",
