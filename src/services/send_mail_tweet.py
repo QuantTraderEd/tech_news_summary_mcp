@@ -309,6 +309,10 @@ if __name__ == "__main__":
                         type=str,
                         default="",
                         nargs='?')
+    parser.add_argument("date",
+                        type=str,
+                        default=None,
+                        nargs='?')
 
     args = parser.parse_args()
-    main(args.pwd)
+    main(args.pwd, args.date)
