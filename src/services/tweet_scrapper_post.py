@@ -53,7 +53,7 @@ TARGET_USERNAMES = [
     "OmerCheema",
     "lithos_graphein",
     "DrFrederickChen",
-    "dnystedt",
+    "IanCutress",
     "SKundojjala",
     "SemiAnalysis_",
     "artificialanlys",
@@ -66,6 +66,8 @@ TARGET_USERNAMES = [
  ]
 
 TARGET_USERNAMES_2ND = [
+    "dnystedt",
+    "sean_________",
     "semivision_tw",
     "kimmonismus",
     "The_AI_Investor",
@@ -538,4 +540,4 @@ if __name__ == "__main__":
     except ValueError:
         parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
 
-    main(base_ymd=args.base_ymd, posts_json_upload=False)
+    main(base_ymd=args.base_ymd, posts_json_upload=False, tweet_username='IanCutress')
