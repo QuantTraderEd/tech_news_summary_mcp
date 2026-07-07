@@ -292,8 +292,6 @@ def run_tweet_daily_dup_batch(base_ymd=None):
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail_tweet.main(pwd, base_ymd)
 
-    count_tweet_posts()
-
 
 def count_tweet_posts(tweet_usernames: list = None):
     """
