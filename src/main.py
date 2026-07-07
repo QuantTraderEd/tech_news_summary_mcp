@@ -34,6 +34,7 @@ from src.services import send_mail
 
 from src.services import tweet_scrapper_post
 from src.services import tweet_summarizer
+from src.services import tweet_daily_dup_check
 from src.services import send_mail_tweet
 
 kst_timezone = pytz.timezone('Asia/Seoul')
@@ -179,6 +180,9 @@ async def execute_batch(backgroundtasks: BackgroundTasks, payload: BatchParams):
             base_ymd = params.get('base_ymd', None)
             tweet_username = params.get('tweet_username', None)
             backgroundtasks.add_task(run_tweet_single_user_batch, base_ymd, tweet_username)
+        elif batch_type == "tweet_daily_dup":
+            base_ymd = params.get('base_ymd', None)
+            backgroundtasks.add_task(run_tweet_daily_dup_batch, base_ymd)
         else:
             msg = f"Error: Unknown batch type '{batch_type}'."
             logger.warning(msg)
@@ -277,6 +281,18 @@ def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
                                             local_file_path=pjt_home_path)
     
     tweet_scrapper_post.main(base_ymd, True, tweet_username)
+    
+def run_tweet_daily_dup_batch(base_ymd=None):
+    
+    if not base_ymd:
+        base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
+        
+    tweet_daily_dup_check.main(base_ymd)
+        
+    pwd = os.environ.get('NVR_MAIL_PWD')
+    send_mail_tweet.main(pwd, base_ymd)
+
+    count_tweet_posts()
 
 
 def count_tweet_posts(tweet_usernames: list = None):
