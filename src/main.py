@@ -285,12 +285,14 @@ def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
 def run_tweet_daily_dup_batch(base_ymd=None):
     
     if not base_ymd:
-        base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
+        base_ymd = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)).strftime("%Y%m%d")  # 기본값은 현재 날짜 - 1 day  (UTC 기준)
         
     tweet_daily_dup_check.main(base_ymd)
         
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail_tweet.main(pwd, base_ymd)
+
+    logger.info(f"tweet_daily_dup_batch for {base_ymd} Done!!")
 
 
 def count_tweet_posts(tweet_usernames: list = None):
