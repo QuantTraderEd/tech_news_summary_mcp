@@ -233,9 +233,10 @@ def run_tweet_batch():
     
     tweet_scrapper_post.main(base_ymd, True)
     tweet_summarizer.main(base_ymd)
-    
-    pwd = os.environ.get('NVR_MAIL_PWD')
-    send_mail_tweet.main(pwd, base_ymd)
+
+    # 임시 메일링 중단
+    # pwd = os.environ.get('NVR_MAIL_PWD')
+    # send_mail_tweet.main(pwd, base_ymd)
 
     count_tweet_posts()
 
@@ -251,8 +252,9 @@ def run_tweet_2nd_batch():
     tweet_scrapper_post.main(base_ymd, True, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
     tweet_summarizer.main(base_ymd, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
 
-    pwd = os.environ.get('NVR_MAIL_PWD')
-    send_mail_tweet.main(pwd, base_ymd)
+    # 임시 메일링 중단
+    # pwd = os.environ.get('NVR_MAIL_PWD')
+    # send_mail_tweet.main(pwd, base_ymd)
 
     count_tweet_posts(tweet_usernames=tweet_scrapper_post.TARGET_USERNAMES_2ND)
     
@@ -264,8 +266,9 @@ def run_tweet_rerun_batch(base_ymd=None):
     gcs_download_json.download_gcs_posts_json_to_local(target_date=base_ymd)
     tweet_summarizer.main(base_ymd)
 
-    pwd = os.environ.get('NVR_MAIL_PWD')
-    send_mail_tweet.main(pwd, base_ymd)
+    # 임시 메일링 중단
+    # pwd = os.environ.get('NVR_MAIL_PWD')
+    # send_mail_tweet.main(pwd, base_ymd)
 
     count_tweet_posts()
     
