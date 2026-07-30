@@ -67,6 +67,7 @@ TARGET_USERNAMES = [
 
 TARGET_USERNAMES_2ND = [
     "dnystedt",
+    "mingchikuo",
     "sean_________",
     "semivision_tw",
     "kimmonismus",
