@@ -279,7 +279,7 @@ def main(pwd: str, base_ymd: str = None):
             # HTML 내용을 파일로 저장
             # UTC 기준 시간(HHMM)을 파일 이름에 추가
             current_utc_time_hhmm = dt.datetime.now(dt.timezone.utc).strftime("%H%M")
-            output_html_path = f"{pjt_home_path}/data/summarized_posts_{current_utc_time_hhmm}.html"
+            output_html_path = f"{pjt_home_path}/data/summarized_posts_{current_utc_time_hhmm}_{base_ymd}.html"
             try:
                 with open(output_html_path, 'w', encoding='utf-8') as f:
                     f.write(email_body_html)
