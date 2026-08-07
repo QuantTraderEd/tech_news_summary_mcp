@@ -182,7 +182,8 @@ async def execute_batch(backgroundtasks: BackgroundTasks, payload: BatchParams):
             backgroundtasks.add_task(run_tweet_single_user_batch, base_ymd, tweet_username)
         elif batch_type == "tweet_daily_dup":
             base_ymd = params.get('base_ymd', None)
-            backgroundtasks.add_task(run_tweet_daily_dup_batch, base_ymd)
+            mode = params.get('mode', 'default')
+            backgroundtasks.add_task(run_tweet_daily_dup_batch, base_ymd, mode)
         else:
             msg = f"Error: Unknown batch type '{batch_type}'."
             logger.warning(msg)
@@ -285,12 +286,12 @@ def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
     
     tweet_scrapper_post.main(base_ymd, True, tweet_username)
     
-def run_tweet_daily_dup_batch(base_ymd=None):
+def run_tweet_daily_dup_batch(base_ymd=None, mode='default'):
     
     if not base_ymd:
         base_ymd = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)).strftime("%Y%m%d")  # 기본값은 현재 날짜 - 1 day  (UTC 기준)
         
-    tweet_daily_dup_check.main(base_ymd)
+    tweet_daily_dup_check.main(base_ymd, mode)
         
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail_tweet.main(pwd, base_ymd)
