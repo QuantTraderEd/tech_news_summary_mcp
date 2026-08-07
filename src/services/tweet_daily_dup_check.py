@@ -115,50 +115,95 @@ def save_posts_to_json(posts: list, output_path: str):
     logger.info(f"파일 저장 완료: '{output_path}' (게시물 수: {len(sorted_posts)})")
 
 
+def merge_posts_with_dup_check(base_posts: list, next_posts: list) -> list:
+    """
+    기준 일자와 다음 일자 게시물을 합치면서 중복을 제거합니다.
+    중복 판별: URL 기준
+    중복이면: 이전 일자(base_posts)의 데이터만 유지
+
+    Args:
+        base_posts (list): 기준 일자 게시물 (YYYYMMDD)
+        next_posts (list): 다음 일자 게시물 (YYYYMMDD + 1)
+
+    Returns:
+        list: 중복 제거 후 합쳐진 게시물 리스트
+    """
+    # base_posts의 URL 맵 생성 (URL -> post)
+    base_urls = {post.get('url'): post for post in base_posts if post.get('url')}
+    logger.info(f"기준 일자 게시물 URL 수: {len(base_urls)}")
+
+    merged_posts = list(base_posts)  # 기준 일자 게시물로 시작
+    dup_cnt = 0
+    new_cnt = 0
+
+    for post in next_posts:
+        post_url = post.get('url')
+        if post_url and post_url in base_urls:
+            # 중복: 기준 일자 데이터만 유지하므로 스킵
+            dup_cnt += 1
+        else:
+            # 신규: 다음 일자 게시물 추가
+            merged_posts.append(post)
+            new_cnt += 1
+
+    logger.info(f"합치기 결과: 중복 {dup_cnt}건 제거, 신규 {new_cnt}건 추가. 최종 게시물 수: {len(merged_posts)}")
+    return merged_posts
+
+
+def filter_posts_by_date(posts: list, target_date: str) -> list:
+    """
+    게시물을 target_date 기준으로 필터링합니다.
+    created_at 필드의 날짜 부분(YYYYMMDD)과 target_date가 일치하는 것만 반환
+
+    Args:
+        posts (list): 게시물 리스트
+        target_date (str): 대상 날짜 (YYYYMMDD 형식)
+
+    Returns:
+        list: 필터링된 게시물 리스트
+    """
+    filtered = []
+    for post in posts:
+        created_at = post.get('created_at', '')
+        # created_at에서 날짜 부분 추출 (YYYYMMDD 형식 또는 YYYY-MM-DD 형식 대응)
+        if created_at.startswith(target_date) or created_at.replace('-', '').startswith(target_date):
+            filtered.append(post)
+
+    logger.info(f"날짜 필터링 결과: {target_date} 기준 {len(filtered)}건 추출")
+    return filtered
+
+
 # --- 메인 로직 ---
-def main(base_ymd: str):
+def main(base_ymd: str, mode: str = "default"):
     """
     중복 체크 메인 실행 함수
 
-    1. 입력 일자(base_ymd)의 summarized_posts_agg.json 다운로드
-    2. 전일자(base_ymd - 1)의 summarized_posts_agg.json 다운로드
-    3. 전일자 파일의 URL과 비교하여 당일 게시물 중복 항목에 '[중복] ' 태그 처리
-    4. 결과를 ./data/summarized_posts.json 에 저장
+    기본 모드(default):
+      1. 입력 일자(base_ymd)의 summarized_posts_agg.json 다운로드
+      2. 전일자(base_ymd - 1)의 summarized_posts_agg.json 다운로드
+      3. 전일자 파일의 URL과 비교하여 당일 게시물 중복 항목에 '[중복] ' 태그 처리
+      4. 결과를 ./data/summarized_posts.json 에 저장
+
+    mix 모드:
+      1. 입력 일자(base_ymd)와 다음 일자(base_ymd + 1) 데이터 다운로드
+      2. 두 데이터를 합치면서 중복 제거 (이전 일자 데이터만 유지)
+      3. 입력 일자(base_ymd) 데이터만 필터링
+      4. 시간 정렬하여 저장
 
     Args:
         base_ymd (str): 기준 일자 (YYYYMMDD 형식)
+        mode (str): 실행 모드 ("default" 또는 "mix")
     """
     logger.info("=" * 50)
-    logger.info("중복 체크 스크립트를 시작합니다.")
+    logger.info(f"중복 체크 스크립트를 시작합니다. (모드: {mode})")
     logger.info(f"기준 일자: {base_ymd}")
 
     try:
-        # 1. 입력 일자의 summarized_posts_agg.json 다운로드
-        logger.info(f"[STEP 1] {base_ymd}/summarized_posts_agg.json 다운로드 시작...")
-        today_posts = download_agg_json(base_ymd)
+        if mode == "mix":
+            _main_mix(base_ymd)
+        else:
+            _main_default(base_ymd)
 
-        if not today_posts:
-            logger.error(f"{base_ymd}/summarized_posts_agg.json 데이터가 없습니다. 처리를 중단합니다.")
-            sys.exit(1)
-
-        # 2. 전일자 계산 및 summarized_posts_agg.json 다운로드
-        base_ymd_prev = (dt.datetime.strptime(base_ymd, "%Y%m%d") - dt.timedelta(days=1)).strftime("%Y%m%d")
-        logger.info(f"[STEP 2] 전일자 {base_ymd_prev}/summarized_posts_agg.json 다운로드 시작...")
-        prev_posts = download_agg_json(base_ymd_prev)
-
-        if not prev_posts:
-            logger.warning(f"전일자 {base_ymd_prev}/summarized_posts_agg.json 데이터가 없습니다. 중복 체크 없이 원본을 저장합니다.")
-
-        # 3. 중복 체크 및 태그 처리
-        logger.info("[STEP 3] 중복 체크 및 태그 처리 시작...")
-        marked_posts = mark_duplicate_posts(today_posts, prev_posts)
-
-        # 4. 결과 저장
-        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
-        logger.info(f"[STEP 4] 결과 저장: {output_filename}")
-        save_posts_to_json(marked_posts, output_filename)
-
-        logger.info(f"✅ 중복 체크가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
         logger.info("=" * 50)
 
     except Exception as e:
@@ -167,10 +212,79 @@ def main(base_ymd: str):
         sys.exit(1)
 
 
+def _main_default(base_ymd: str):
+    """
+    기본 모드: 입력 일자와 전일자 비교하여 중복 태그 처리
+    """
+    # 1. 입력 일자의 summarized_posts_agg.json 다운로드
+    logger.info(f"[STEP 1] {base_ymd}/summarized_posts_agg.json 다운로드 시작...")
+    today_posts = download_agg_json(base_ymd)
+
+    if not today_posts:
+        logger.error(f"{base_ymd}/summarized_posts_agg.json 데이터가 없습니다. 처리를 중단합니다.")
+        sys.exit(1)
+
+    # 2. 전일자 계산 및 summarized_posts_agg.json 다운로드
+    base_ymd_prev = (dt.datetime.strptime(base_ymd, "%Y%m%d") - dt.timedelta(days=1)).strftime("%Y%m%d")
+    logger.info(f"[STEP 2] 전일자 {base_ymd_prev}/summarized_posts_agg.json 다운로드 시작...")
+    prev_posts = download_agg_json(base_ymd_prev)
+
+    if not prev_posts:
+        logger.warning(f"전일자 {base_ymd_prev}/summarized_posts_agg.json 데이터가 없습니다. 중복 체크 없이 원본을 저장합니다.")
+
+    # 3. 중복 체크 및 태그 처리
+    logger.info("[STEP 3] 중복 체크 및 태그 처리 시작...")
+    marked_posts = mark_duplicate_posts(today_posts, prev_posts)
+
+    # 4. 결과 저장
+    output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
+    logger.info(f"[STEP 4] 결과 저장: {output_filename}")
+    save_posts_to_json(marked_posts, output_filename)
+
+    logger.info(f"✅ 중복 체크가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
+
+
+def _main_mix(base_ymd: str):
+    """
+    mix 모드: 입력 일자와 다음 일자를 합쳐서 중복 제거 후 입력 일자만 추출
+    """
+    # 1. 입력 일자 데이터 다운로드
+    logger.info(f"[STEP 1] {base_ymd}/summarized_posts_agg.json 다운로드 시작...")
+    base_posts = download_agg_json(base_ymd)
+
+    if not base_posts:
+        logger.error(f"{base_ymd}/summarized_posts_agg.json 데이터가 없습니다. 처리를 중단합니다.")
+        sys.exit(1)
+
+    # 2. 다음 일자 계산 및 데이터 다운로드
+    base_ymd_next = (dt.datetime.strptime(base_ymd, "%Y%m%d") + dt.timedelta(days=1)).strftime("%Y%m%d")
+    logger.info(f"[STEP 2] 다음 일자 {base_ymd_next}/summarized_posts_agg.json 다운로드 시작...")
+    next_posts = download_agg_json(base_ymd_next)
+
+    if not next_posts:
+        logger.warning(f"다음 일자 {base_ymd_next}/summarized_posts_agg.json 데이터가 없습니다. 기준 일자 데이터만 사용합니다.")
+        next_posts = []
+
+    # 3. 데이터 합치기 (중복 제거: 기준 일자 데이터만 유지)
+    logger.info("[STEP 3] 데이터 합치기 및 중복 제거 (기준 일자 유지)...")
+    merged_posts = merge_posts_with_dup_check(base_posts, next_posts)
+
+    # 4. 기준 일자 데이터만 필터링
+    logger.info(f"[STEP 4] {base_ymd} 날짜 기준 데이터 필터링...")
+    filtered_posts = filter_posts_by_date(merged_posts, base_ymd)
+
+    # 5. 결과 저장
+    output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
+    logger.info(f"[STEP 5] 결과 저장: {output_filename}")
+    save_posts_to_json(filtered_posts, output_filename)
+
+    logger.info(f"✅ mix 모드 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
+
+
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='중복 URL 체크 스크립트: 당일/전일 summarized_posts_agg.json 비교')
+    parser = argparse.ArgumentParser(description='중복 URL 체크 스크립트: 당일/전일 summarized_posts_agg.json 비교 또는 mix 모드로 당일/익일 합치기')
 
     # base_ymd 인자 추가
     parser.add_argument(
@@ -181,6 +295,15 @@ if __name__ == "__main__":
         nargs='?'
     )
 
+    # mode 인자 추가
+    parser.add_argument(
+        "-m", "--mode",
+        type=str,
+        default="default",
+        choices=["default", "mix"],
+        help="실행 모드: 'default'(기본, 전일자와 비교), 'mix'(익일 데이터와 합치기). 기본값은 'default'"
+    )
+
     args = parser.parse_args()
 
     # base_ymd 유효성 검증
@@ -189,4 +312,4 @@ if __name__ == "__main__":
     except ValueError:
         parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. YYYYMMDD 형식으로 입력해주세요.")
 
-    main(base_ymd=args.base_ymd)
+    main(base_ymd=args.base_ymd, mode=args.mode)
