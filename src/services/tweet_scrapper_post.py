@@ -53,7 +53,6 @@ TARGET_USERNAMES = [
     "OmerCheema",
     "lithos_graphein",
     "DrFrederickChen",
-    "IanCutress",
     "SKundojjala",
     "SemiAnalysis_",
     "artificialanlys",
@@ -67,6 +66,7 @@ TARGET_USERNAMES = [
 
 TARGET_USERNAMES_2ND = [
     "dnystedt",
+    "IanCutress",
     "mingchikuo",
     "sean_________",
     "semivision_tw",
