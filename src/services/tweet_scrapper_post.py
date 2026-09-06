@@ -69,6 +69,7 @@ TARGET_USERNAMES_2ND = [
     "IanCutress",
     "mingchikuo",
     "sean_________",
+    "pequityresearch",
     "semivision_tw",
     "kimmonismus",
     "The_AI_Investor",
