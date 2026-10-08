@@ -62,8 +62,8 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 
-# Gemini 2.5 Flash Lite 모델 로드
-model = genai.GenerativeModel('gemini-2.5-flash-lite')
+# Gemini 3.5 Flash Lite 모델 로드
+model = genai.GenerativeModel('gemini-3.5-flash-lite')
 
 # --- 2. 헬퍼 함수: Gemini API 호출 ---
 
