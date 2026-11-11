@@ -16,7 +16,7 @@ pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
-from src.services.news_crawler_zdnet import NewsCrawler_ZDNet, main as zdnet_main
+from src.services.news_crawler_zdnet import NewsCrawler_ZDNet, PARSE_FAILED_DATETIME, main as zdnet_main
 
 # Constants
 BASE_URL = "https://zdnet.co.kr/news/?lstcode=0050"
@@ -61,7 +61,7 @@ def test_parse_date(crawler):
     assert crawler._parse_date(valid_date_str) == expected_dt
 
     invalid_date_str = "invalid-date"
-    assert crawler._parse_date(invalid_date_str) == dt.datetime.min
+    assert crawler._parse_date(invalid_date_str) == PARSE_FAILED_DATETIME
 
 def test_parse_date_from_link(crawler):
     """Test parsing date from an article link."""
@@ -70,7 +70,11 @@ def test_parse_date_from_link(crawler):
     assert crawler._parse_date_from_link(valid_link) == expected_dt
 
     invalid_link = "/news/article.html?id=123"
-    assert crawler._parse_date_from_link(invalid_link) == dt.datetime.min
+    assert crawler._parse_date_from_link(invalid_link) == PARSE_FAILED_DATETIME
+
+    # no= 값이 14자리 타임스탬프가 아닌 경우에도 예외 없이 실패 값을 반환해야 한다.
+    malformed_link = "/news/article.html?no=12345"
+    assert crawler._parse_date_from_link(malformed_link) == PARSE_FAILED_DATETIME
 
 @patch('src.services.news_crawler_zdnet.requests.get')
 def test_fetch_articles(mock_get, crawler):
@@ -115,6 +119,38 @@ def test_fetch_articles(mock_get, crawler):
     assert articles[1]['title'] == "Sub News In Range"
     assert articles[2]['title'] == "Top News In Range"
     assert all('https://zdnet.co.kr' in a['url'] for a in articles)
+
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_fetch_articles_skips_unparsable_dates(mock_get, crawler):
+    """날짜를 파싱할 수 없는 기사는 예외 없이 건너뛰고 나머지 기사는 수집되어야 한다."""
+    mock_html = """
+    <html><body>
+        <div class="newsPost">
+            <a href="/news/article.html?no=20250628100000"></a>
+            <div class="assetText"><h3>Broken Date Article</h3></div>
+            <p class="byline"><span>날짜아님</span></p>
+        </div>
+        <div class="newsPost">
+            <a href="/news/article.html?no=20250628100000"></a>
+            <div class="assetText"><h3>Article In Range</h3></div>
+            <p class="byline"><span>2025.06.28 AM 10:00</span></p>
+        </div>
+        <div class="sub_news">
+            <a href="/news/article.html?id=123">Sub News Without Timestamp</a>
+        </div>
+    </body></html>
+    """
+    mock_response = MagicMock()
+    mock_response.text = mock_html
+    mock_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_response
+
+    crawler.set_target_date_range(KST.localize(dt.datetime(2025, 6, 27)),
+                                  KST.localize(dt.datetime(2025, 6, 29)))
+
+    articles = crawler.fetch_articles()
+
+    assert [a['title'] for a in articles] == ["Article In Range"]
 
 @patch('src.services.news_crawler_zdnet.requests.get')
 def test_fetch_article_content(mock_get, crawler):

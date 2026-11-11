@@ -27,6 +27,10 @@ logger.addHandler(stream_log)
 
 kst_timezone = pytz.timezone('Asia/Seoul')
 
+# 날짜 파싱 실패 시 반환하는 값. 충분히 오래된 날짜라 수집 기간 필터에서 제외된다.
+# (dt.datetime.min 은 kst_timezone.localize() 에서 OverflowError 를 일으켜 사용할 수 없음)
+PARSE_FAILED_DATETIME = dt.datetime(1970, 1, 1)
+
 class ThelecNewsCrawler:
     """
     디일렉(thelec.kr) 뉴스 웹사이트에서 기사를 크롤링하는 클래스.
@@ -116,7 +120,7 @@ class ThelecNewsCrawler:
                 return dt.datetime.strptime(datetime_str.strip(), "%Y-%m-%d")
         except ValueError as e:
             logger.error(f"Failed to parse date string '{datetime_str}': {e}")
-            return dt.datetime.min
+            return PARSE_FAILED_DATETIME  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
 
     def _extract_date_from_element(self, element) -> str | None:
         """

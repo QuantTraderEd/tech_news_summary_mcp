@@ -27,6 +27,10 @@ logger.addHandler(stream_log)
 
 kst_timezone = pytz.timezone('Asia/Seoul')
 
+# 날짜 파싱 실패 시 반환하는 값. 충분히 오래된 날짜라 수집 기간 필터에서 제외된다.
+# (dt.datetime.min 은 kst_timezone.localize() 에서 OverflowError 를 일으켜 사용할 수 없음)
+PARSE_FAILED_DATETIME = dt.datetime(1970, 1, 1)
+
 class NewsCrawler_ZDNet:
     """
     지정된 뉴스 웹사이트에서 기사를 크롤링하는 클래스.
@@ -75,7 +79,7 @@ class NewsCrawler_ZDNet:
             return dt.datetime.strptime(datetime_str, "%Y.%m.%d %p %I:%M")
         except ValueError as e:
             logger.error(f"Failed to parse date string '{datetime_str}': {e}")
-            return dt.datetime.min  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
+            return PARSE_FAILED_DATETIME  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
         
     def _parse_date_from_link(self, article_link: str):
         # 정규 표현식을 사용하여 숫자 부분 추출
@@ -87,11 +91,14 @@ class NewsCrawler_ZDNet:
             # datetime 객체로 파싱
             # %Y: 년도 (4자리), %m: 월 (2자리), %d: 일 (2자리)
             # %H: 시 (24시간 형식), %M: 분 (2자리), %S: 초 (2자리)
-            datetime_object = dt.datetime.strptime(datetime_str, '%Y%m%d%H%M%S')
-            return datetime_object
+            try:
+                return dt.datetime.strptime(datetime_str, '%Y%m%d%H%M%S')
+            except ValueError as e:
+                logger.error(f"Failed to parse article_link: '{article_link}': {e}")
+                return PARSE_FAILED_DATETIME
         else:
             logger.error(f"Failed to parse article_link: '{article_link}' ....")
-            return dt.datetime.min  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
+            return PARSE_FAILED_DATETIME  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
 
     def fetch_articles(self) -> List[Dict[str, str]]:
         """
