@@ -13,7 +13,6 @@
     - 이메일 발송 모듈: 요약된 뉴스를 **SMTP(Simple Mail Transfer Protocol)** 를 통해 지정된 수신자에게 이메일로 발송
 
 ## 트위터 게시글 수집 (Selenium 스크래핑)
-- **쿠키 로그인**: 배치 시작 시 GCS(`config/20000101/tweet_cookies.json`)에서 쿠키 파일을 내려받아 브라우저 세션에 적용
 - **수집 대상**: `src/services/tweet_scrapper_post.py` 의 `TARGET_USERNAMES`, `TARGET_USERNAMES_2ND`
 - **번역/요약**: 수집한 게시글을 Gemini API로 번역·요약하고, 일자별 누적 파일(`summarized_posts_agg.json`)과 비교해 중복 게시글에 `[중복]` 태그 처리
 - X API(tweepy) 방식의 `twitter_collector.py` 는 현재 사용하지 않습니다.
