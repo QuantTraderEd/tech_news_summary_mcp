@@ -2,7 +2,12 @@ import os
 import site
 import json
 
+from unittest import mock
+
 import pytest
+from google.api_core import exceptions as google_exceptions
+from google.protobuf import duration_pb2
+from google.rpc import error_details_pb2
 
 # Add project root to the Python path
 src_path = os.path.dirname(__file__)
@@ -77,3 +82,102 @@ def test_dup_tag_only_for_posts_in_prev_agg(summarizer_env, mocker):
     posts = _load_summarized_posts(summarizer_env)
     assert posts[URL_A]['title'] == "[중복] 제목 A"
     assert posts[URL_B]['translated_text'] == "번역 B"
+
+
+# --- call_gemini_api: 429(할당량/요청 한도 초과) 재시도 테스트 ---
+
+def _quota_error(retry_delay_seconds=None):
+    """Gemini API 가 gRPC 로 돌려주는 429(ResourceExhausted) 예외를 만든다."""
+    details = []
+    if retry_delay_seconds is not None:
+        details.append(error_details_pb2.RetryInfo(
+            retry_delay=duration_pb2.Duration(seconds=retry_delay_seconds)))
+    return google_exceptions.ResourceExhausted("You exceeded your current quota", details=details)
+
+
+def _ok_response(text):
+    response = mock.MagicMock()
+    response.text = text
+    return response
+
+
+@pytest.fixture
+def gemini(mocker):
+    """model 과 time.sleep 을 목 처리하고, 할당량 차단 상태를 초기화한다."""
+    mocker.patch.object(tweet_summarizer, '_quota_blocked_until', 0.0)
+    mock_model = mocker.patch.object(tweet_summarizer, 'model')
+    mock_sleep = mocker.patch.object(tweet_summarizer.time, 'sleep')
+    return mock_model, mock_sleep
+
+
+def test_call_gemini_api_success_without_retry(gemini):
+    mock_model, mock_sleep = gemini
+    mock_model.generate_content.return_value = _ok_response("번역 결과")
+
+    assert tweet_summarizer.call_gemini_api("prompt") == "번역 결과"
+    assert mock_model.generate_content.call_count == 1
+    mock_sleep.assert_not_called()
+
+
+def test_call_gemini_api_retries_429_with_backoff(gemini):
+    """서버가 대기 시간을 알려주지 않으면 5초, 10초... 로 늘려가며 재시도한다."""
+    mock_model, mock_sleep = gemini
+    mock_model.generate_content.side_effect = [_quota_error(), _quota_error(), _ok_response("번역 결과")]
+
+    assert tweet_summarizer.call_gemini_api("prompt") == "번역 결과"
+    assert mock_model.generate_content.call_count == 3
+    assert [call.args[0] for call in mock_sleep.call_args_list] == [5.0, 10.0]
+
+
+def test_call_gemini_api_uses_server_retry_delay(gemini):
+    """429 응답에 RetryInfo 가 있으면 그 시간(+여유)만큼 기다린다."""
+    mock_model, mock_sleep = gemini
+    mock_model.generate_content.side_effect = [_quota_error(retry_delay_seconds=28), _ok_response("번역 결과")]
+
+    assert tweet_summarizer.call_gemini_api("prompt") == "번역 결과"
+    mock_sleep.assert_called_once_with(28 + tweet_summarizer.GEMINI_RETRY_DELAY_MARGIN)
+
+
+def test_call_gemini_api_gives_up_after_max_attempts_and_skips_later_calls(gemini):
+    """끝까지 429 면 정해진 횟수만 시도하고, 이후 호출은 API 를 부르지 않고 바로 실패 처리한다."""
+    mock_model, mock_sleep = gemini
+    mock_model.generate_content.side_effect = _quota_error()
+
+    assert tweet_summarizer.call_gemini_api("prompt") == tweet_summarizer.API_ERROR_TEXT
+    assert mock_model.generate_content.call_count == tweet_summarizer.GEMINI_MAX_ATTEMPTS
+    assert [call.args[0] for call in mock_sleep.call_args_list] == [5.0, 10.0, 20.0, 40.0]
+
+    # 차단 시간 동안: API 호출도, 대기도 없이 바로 실패
+    mock_model.generate_content.reset_mock()
+    mock_sleep.reset_mock()
+    assert tweet_summarizer.call_gemini_api("next prompt") == tweet_summarizer.API_ERROR_TEXT
+    mock_model.generate_content.assert_not_called()
+    mock_sleep.assert_not_called()
+
+    # 차단 시간이 지나면 다시 호출한다
+    tweet_summarizer._quota_blocked_until = 0.0
+    mock_model.generate_content.side_effect = None
+    mock_model.generate_content.return_value = _ok_response("번역 결과")
+    assert tweet_summarizer.call_gemini_api("later prompt") == "번역 결과"
+
+
+def test_call_gemini_api_gives_up_when_server_delay_is_too_long(gemini):
+    """서버 권장 대기 시간이 한도보다 길면 기다리지 않고 바로 포기한다."""
+    mock_model, mock_sleep = gemini
+    mock_model.generate_content.side_effect = _quota_error(retry_delay_seconds=3600)
+
+    assert tweet_summarizer.call_gemini_api("prompt") == tweet_summarizer.API_ERROR_TEXT
+    assert mock_model.generate_content.call_count == 1
+    mock_sleep.assert_not_called()
+    assert tweet_summarizer._quota_blocked_until > 0.0
+
+
+def test_call_gemini_api_does_not_retry_other_errors(gemini):
+    """429 가 아닌 오류는 재시도하지 않고, 이후 호출도 막지 않는다."""
+    mock_model, mock_sleep = gemini
+    mock_model.generate_content.side_effect = google_exceptions.InvalidArgument("bad request")
+
+    assert tweet_summarizer.call_gemini_api("prompt") == tweet_summarizer.API_ERROR_TEXT
+    assert mock_model.generate_content.call_count == 1
+    mock_sleep.assert_not_called()
+    assert tweet_summarizer._quota_blocked_until == 0.0
