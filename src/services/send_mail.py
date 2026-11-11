@@ -105,19 +105,19 @@ def send_email_with_news(sender_email: str, sender_password: str, receiver_email
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body {{ font-family: 'Inter', sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4; }}
-            .container {{ max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }}
-            h1 {{ color: #0056b3; text-align: center; margin-bottom: 20px; }}
-            .news-item {{ border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; }}
-            .news-item:last-child {{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }}
-            h2 {{ color: #007bff; font-size: 1.2em; margin-top: 0; margin-bottom: 5px; }}
-            p {{ margin-bottom: 5px; }}
-            .date {{ font-size: 0.9em; color: #666; }}
-            .url {{ font-size: 0.9em; color: #007bff; text-decoration: none; display: block; margin-top: 5px; }}
-            .summary {{ font-size: 1em; color: #555; }}
-            ul {{ list-style: none; padding: 0; margin: 0; }}
-            li {{ margin-bottom: 5px; }}
-            .footer {{ text-align: center; font-size: 0.8em; color: #999; margin-top: 20px; }}
+            body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4; }
+            .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+            h1 { color: #0056b3; text-align: center; margin-bottom: 20px; }
+            .news-item { border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; }
+            .news-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+            h2 { color: #007bff; font-size: 1.2em; margin-top: 0; margin-bottom: 5px; }
+            p { margin-bottom: 5px; }
+            .date { font-size: 0.9em; color: #666; }
+            .url { font-size: 0.9em; color: #007bff; text-decoration: none; display: block; margin-top: 5px; }
+            .summary { font-size: 1em; color: #555; }
+            ul { list-style: none; padding: 0; margin: 0; }
+            li { margin-bottom: 5px; }
+            .footer { text-align: center; font-size: 0.8em; color: #999; margin-top: 20px; }
         </style>
     </head>
     <body>
@@ -139,7 +139,7 @@ def send_email_with_news(sender_email: str, sender_password: str, receiver_email
             """
         
         # 요약 내용을 줄바꿈 기준으로 리스트 아이템으로 변환하고, 선행하는 '*'와 공백을 제거
-        html_body += f"""
+        html_body += """
                 <div class="summary">
                     <ul>
         """
