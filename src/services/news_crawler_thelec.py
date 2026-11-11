@@ -34,8 +34,19 @@ PARSE_FAILED_DATETIME = dt.datetime(1970, 1, 1)
 class ThelecNewsCrawler:
     """
     디일렉(thelec.kr) 뉴스 웹사이트에서 기사를 크롤링하는 클래스.
-    IT·게임 섹션의 뉴스를 가져옵니다.
+    target_section 으로 지정한 섹션(기본값: 반도체)의 뉴스를 가져옵니다.
     """
+
+    # 섹션 이름 -> 해당 섹션으로 인정할 키워드 목록
+    SECTION_KEYWORDS = {
+        "반도체": ["반도체", "semiconductor", "S1N2"],
+        "디스플레이": ["디스플레이", "display"],
+        "IT‧게임": ["IT‧게임", "IT·게임", "IT게임"],
+        "방산‧에너지": ["방산‧에너지", "방산·에너지", "방산에너지"],
+        "중국산업동향": ["중국산업동향", "China Industry Trends"],
+        "배터리": ["배터리", "battery", "Battery"],
+        "자동차": ["자동차", "car", "automotive"]
+    }
 
     def __init__(self, base_url: str, target_section: str = "반도체"):
         self.base_url = base_url
@@ -74,17 +85,7 @@ class ThelecNewsCrawler:
                 return False
             text_to_check.append(section_tag.get_text())
         
-        section_keywords = {
-            "반도체": ["반도체", "semiconductor", "S1N2"],
-            "디스플레이": ["디스플레이", "display"],
-            "IT‧게임": ["IT‧게임", "IT·게임", "IT게임"],
-            "방산‧에너지": ["방산‧에너지", "방산·에너지", "방산에너지"],
-            "중국산업동향": ["중국산업동향", "China Industry Trends"],
-            "배터리": ["배터리", "battery", "Battery"],
-            "자동차": ["자동차", "car", "automotive"]
-        }
-        
-        target_keywords = section_keywords.get(self.target_section, [self.target_section])
+        target_keywords = self.SECTION_KEYWORDS.get(self.target_section, [self.target_section])
         
         for indicator in text_to_check:
             for keyword in target_keywords:
@@ -307,16 +308,7 @@ class ThelecNewsCrawler:
                 if not is_section_match_from_list:
                     meta_section = self._get_section_from_article_page(article_url)
                     
-                    section_keywords_map = {
-                        "반도체": ["반도체", "semiconductor", "S1N2"],
-                        "디스플레이": ["디스플레이", "display"],
-                        "IT‧게임": ["IT‧게임", "IT·게임", "IT게임"],
-                        "방산‧에너지": ["방산‧에너지", "방산·에너지", "방산에너지"],
-                        "중국산업동향": ["중국산업동향", "China Industry Trends"],
-                        "배터리": ["배터리", "battery", "Battery"],
-                        "자동차": ["자동차", "car", "automotive"]
-                    }
-                    target_keywords = section_keywords_map.get(self.target_section, [self.target_section])
+                    target_keywords = self.SECTION_KEYWORDS.get(self.target_section, [self.target_section])
                     
                     found_in_meta = False
                     if meta_section:
@@ -352,7 +344,7 @@ class ThelecNewsCrawler:
 
     def fetch_articles(self, pages: int = 3) -> List[Dict[str, str]]:
         """
-        뉴스 목록 페이지에서 기사 제목, URL, 날짜를 가져와 최근 7일간의 뉴스만 필터링합니다.
+        뉴스 목록 페이지에서 기사 제목, URL, 날짜를 가져와 설정된 일자 (디폴트 최근 3일) 이내 뉴스만 필터링합니다.
         디일렉의 HTML 구조에 맞춰져 있으며, 특정 섹션만 필터링합니다.
         """
         news_list = []
@@ -493,7 +485,7 @@ class ThelecNewsCrawler:
 
 def main(target_section: str, base_ymd: str):
     """
-    thelect 뉴스 수집 메인 배치 함수
+    thelec 뉴스 수집 메인 배치 함수
     :param str target_section: 뉴스 수집 대상 색션 (반도체, 자동차, 배터리)
     :param str base_ymd: 뉴스 수집 기준 일자 (yyyymmdd), 뉴스 수집 기본 일자 범위는 [T-3, T]
     """
@@ -527,7 +519,7 @@ def main(target_section: str, base_ymd: str):
         articles = crawler.fetch_articles(pages=2)
 
         if articles:
-            logger.info(f"Found {len(articles)} recent semiconductor articles.")
+            logger.info(f"Found {len(articles)} recent {target_section_en} articles.")
             for i, article in enumerate(articles):
                 logger.info(f"\n--- Article {i + 1} ---")
                 logger.info(f"Title: {article['title']}")
@@ -539,7 +531,7 @@ def main(target_section: str, base_ymd: str):
                 article['content'] = content
                 
         else:
-            logger.warning("No recent semiconductor articles found or an error occurred.")
+            logger.warning(f"No recent {target_section_en} articles found or an error occurred.")
 
         
         # 뉴스 데이터 json 파일로 저장    
