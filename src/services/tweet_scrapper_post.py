@@ -178,7 +178,7 @@ class TweetScraper:
 
             except TimeoutException:
                 logger.error("로그인 다음 단계의 입력 필드를 찾을 수 없습니다. CAPTCHA 또는 예상치 못한 페이지일 수 있습니다.")
-                error_page_filename = "login_error_page.html"
+                error_page_filename = f"{pjt_home_path}/login_error_page.html"
                 with open(error_page_filename, "w", encoding="utf-8") as f:
                     f.write(self.driver.page_source)
                 logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
@@ -425,6 +425,7 @@ class TweetScraper:
         
         if not os.path.exists(local_file_path):
             logger.warning(f"{filename} 파일이 없습니다!")
+            return
         
         try:                
             gcs_upload_json.upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
@@ -478,7 +479,7 @@ def main(base_ymd: str,
             logger.error(f"오류: 설정 파일({CONFIG_FILE})을 찾을 수 없습니다.")
             sys.exit(1)  # 프로그램 종료
         except KeyError:
-            logger.error(f"오류: {CONFIG_FILE}에 'username' 또는 'password' 또는 'verification_info' 키가 없습니다.")
+            logger.error(f"오류: {CONFIG_FILE}에 'TWEET_USERNAME' 또는 'TWEET_PASSWORD' 또는 'VERIFICATION_INFO' 키가 없습니다.")
             sys.exit(1)  # 프로그램 종료
 
         # scraper 설정

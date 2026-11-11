@@ -29,7 +29,7 @@ def upload_local_file_to_gcs(local_file_path: str,
     로컬 파일을 Google Cloud Storage로 업로드합니다.
 
     Args:
-        local_dalocal_file_pathta_dir (str): JSON 경로 + 파일이름 (예: '/data/news_data.json').
+        local_file_path (str): JSON 경로 + 파일이름 (예: '/data/news_data.json').
         bucket_name (str): GCS 버킷 이름.
         gcs_base_path (str): GCS 버킷 내의 기본 경로 (예: 'news_data').
         date_str (str, optional): GCS 경로에 사용할 날짜 문자열 (YYYYMMDD 형식).
@@ -91,7 +91,7 @@ def local_test():
 def main(target_news_site: str, base_ymd: str):
     """
     articles.json 파일 GCS 업로드 메인 배치
-    :param str target_news_site: 뉴스 수집 사이트 이름 (zdnet, thelec)
+    :param str target_news_site: 뉴스 수집 사이트 이름 (zdnet, thelec, etnews)
     :param str base_ymd: GCS 업로드 날짜 (yyyymmdd)  
     :return: None
     """

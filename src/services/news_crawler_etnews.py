@@ -76,7 +76,7 @@ class NewsCrawlerEtnews:
     def _parse_date(self, datetime_str: str) -> dt.datetime:
         """
         날짜 문자열을 datetime 객체로 파싱합니다.
-        ETNews 날짜 형식: YYYY.MM.DD HH:MM  (예: 2025-05-23 19:22)
+        ETNews 날짜 형식: YYYY-MM-DD HH:MM  (예: 2025-05-23 19:22)
         """
         try:
             return dt.datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
@@ -174,8 +174,8 @@ class NewsCrawlerEtnews:
     
     def fetch_article_content(self, article_url: str) -> str:
         """
-        개별 기사 페이지의 HTML에서 본문 텍스트를 파싱합니다.
-        :param html: 기사 페이지의 HTML 콘텐츠
+        개별 기사 페이지를 가져와 본문 텍스트를 파싱합니다.
+        :param article_url: 기사 페이지 URL
         :return: 기사 본문 텍스트
         """
         logger.info(f"Fetching content for article: {article_url}")

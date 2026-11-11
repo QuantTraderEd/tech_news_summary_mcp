@@ -75,7 +75,7 @@ def local_test():
     ret = download_gcs_to_local(file_name, date_str='20250711')
     logger.info(f"ret => {ret}")
     
-def download_gcs_posts_json_to_local(target_user_list:list = [], target_date:str = '20000101'):
+def download_gcs_posts_json_to_local(target_user_list: list = None, target_date: str = '20000101'):
     if not target_user_list:
         target_user_list = tweet_scrapper_post.TARGET_USERNAMES
 
