@@ -110,7 +110,7 @@ class NewsCrawler_ZDNet:
         str_start_date = self.start_date.strftime('%Y-%m-%d')
         str_end_date = self.end_date.strftime('%Y-%m-%d')
         
-        logger.info(f"Fetching articles from {self.base_url}published from {str_start_date} to {str_end_date}")
+        logger.info(f"Fetching articles from {self.base_url} published from {str_start_date} to {str_end_date}")
 
         response = requests.get(self.base_url, headers=self.headers, timeout=10)
         response.raise_for_status()  # HTTP 오류가 발생하면 예외 발생
@@ -122,7 +122,7 @@ class NewsCrawler_ZDNet:
         news_posts = soup.find_all('div', class_='newsPost')
 
         if (not news_posts) and (not sub_news):
-            logger.warning(f"Not Found both news_posts and sub_news")
+            logger.warning("Not Found both news_posts and sub_news")
             logger.warning(f"No news items found on {self.base_url}")
             return news_list
 
@@ -165,39 +165,9 @@ class NewsCrawler_ZDNet:
             else:
                 logger.debug(f"Skipping old article: {title} ({published_datetime})")
 
-        # sub_news 클래스에서 검색된 뉴스 기사 목록
-        # To-Do: sub_news 뉴스 목록 데이터 있는 경우 데이터 처리 로직 추가 필요
-        for news_item in sub_news:
-            article_link = news_item.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그            
-            title = news_item.get_text(strip=True)
-            article_datetime = self._parse_date_from_link(article_link)
-
-            logger.info("=========================")
-            logger.info(f'title: {title}')
-            logger.info(f'link: {article_link}')
-            logger.info(f'article_datetime: {article_datetime}')
-            
-            # 상대 경로 URL을 절대 경로로 변환
-            # base_url이 'https://zdnet.co.kr/news/?lstcode=0050' 이면
-            # 'https://zdnet.co.kr' 부분만 추출하여 합칩니다.
-            base_domain = self.base_url.split('/news')[0]
-            article_url = base_domain + article_link
-            
-            # Check if the article is within from start_date to end_date
-            published_datetime = kst_timezone.localize(article_datetime)
-            if published_datetime >= self.start_date and published_datetime <= self.end_date:
-                news_list.append({
-                    "title": title,
-                    "url": article_url,
-                    "published_date": published_datetime.strftime('%Y-%m-%d'),
-                    "content": ""  # 내용은 fetch_article_content에서 채움
-                })
-            else:
-                logger.debug(f"Skipping old article: {title} ({published_datetime})")
-        
-        # top_news 클래스에서 검색된 뉴스 기사 목록
-        # To-Do: top_news 뉴스 목록 데이터 있는 경우 데이터 처리 로직 추가 필요
-        for news_item in top_news:
+        # sub_news, top_news 클래스에서 검색된 뉴스 기사 목록 (두 영역은 구조와 처리 방식이 동일)
+        # To-Do: sub_news, top_news 뉴스 목록 데이터 있는 경우 데이터 처리 로직 추가 필요
+        for news_item in list(sub_news) + list(top_news):
             article_link = news_item.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그            
             title = news_item.get_text(strip=True)
             article_datetime = self._parse_date_from_link(article_link)
@@ -295,7 +265,7 @@ class NewsCrawler_ZDNet:
             return content.strip()
         else:
             logger.warning(
-                f"Could not find article content with selector '#article_view_content' for {article_url}")
+                f"Could not find article content with selector '#articleBody' or 'div.sub_view_cont' for {article_url}")
             return "기사 내용을 찾을 수 없습니다."
         
 def main(target_section: str, base_ymd: str):
