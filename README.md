@@ -52,7 +52,6 @@ tech_news_summary_mcp/
 │   ├── send_summary.sh            # news 요약 메일 발송 스크립트
 │   └── start_batch.sh             # news 수집+GCS 업로드+요약 배치 스크립트
 ├── src
-│   ├── config.py                  # (빈 파일)
 │   ├── main.py                    # fastapi 서버 메인 코드
 │   └── services
 │       ├── gcs_download_json.py       # GCS -> 로컬 다운로드
