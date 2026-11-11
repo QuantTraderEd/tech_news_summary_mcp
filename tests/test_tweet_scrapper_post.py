@@ -47,8 +47,11 @@ def test_parse_tweet_datetime():
 
     # Test invalid datetime string
     invalid_str = "not-a-valid-date"
-    # The function is designed to return dt.datetime.min on failure
-    assert TweetScraper().parse_tweet_datetime(invalid_str) == dt.datetime.min
+    # The function is designed to return an (aware) dt.datetime.min on failure
+    failed_dt = TweetScraper().parse_tweet_datetime(invalid_str)
+    assert failed_dt == dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+    # aware datetime 인 start_date 와 예외 없이 비교 가능해야 한다.
+    assert failed_dt < dt.datetime.now(dt.timezone.utc)
 
 @patch('src.services.tweet_scrapper_post.time.sleep')
 def test_login_to_twitter_success(mock_sleep, scraper):
@@ -162,6 +165,37 @@ def test_scrape_user_post_with_date_filtering(mock_json_dump, mock_file_open, mo
         }]
     }
     mock_json_dump.assert_called_once_with(expected_post_data, mock_file_open(), ensure_ascii=False, indent=4)
+
+@patch('src.services.tweet_scrapper_post.time.sleep')
+@patch('src.services.tweet_scrapper_post.open', new_callable=mock_open)
+@patch('src.services.tweet_scrapper_post.json.dump')
+def test_scrape_user_post_skips_unparsable_timestamp(mock_json_dump, mock_file_open, mock_sleep, scraper):
+    """작성 시간을 파싱할 수 없는 게시글은 예외 없이 건너뛰어야 한다."""
+    target_username = "testuser"
+
+    mock_time = MagicMock()
+    mock_time.get_attribute.return_value = "not-a-valid-date"
+    mock_link = MagicMock()
+    mock_link.get_attribute.return_value = f"https://x.com/{target_username}/status/1"
+    mock_link.find_element.return_value = mock_time
+    mock_text = MagicMock()
+    mock_text.text = "Tweet with broken timestamp."
+
+    mock_article = MagicMock()
+    def find_element_side_effect(*args, **kwargs):
+        if ".//a[time]" in args[1]: return mock_link
+        if ".//div[@data-testid='tweetText']" in args[1]: return mock_text
+        raise NoSuchElementException
+    mock_article.find_element.side_effect = find_element_side_effect
+
+    scraper.driver.find_elements.return_value = [mock_article]
+    scraper.set_target_date_range(dt.datetime(2025, 6, 27, tzinfo=dt.timezone.utc),
+                                  dt.datetime(2025, 6, 29, tzinfo=dt.timezone.utc))
+
+    scraper.scrape_user_post(target_username)
+
+    mock_file_open.assert_not_called()
+    mock_json_dump.assert_not_called()
 
 @patch('src.services.tweet_scrapper_post.time.sleep')
 @patch('src.services.tweet_scrapper_post.open', new_callable=mock_open)
