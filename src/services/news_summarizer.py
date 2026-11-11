@@ -117,7 +117,7 @@ def main(base_ymd: str):
         # json 파일 GCS 에 업로드
         gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_json_path,
                                                 date_str=base_ymd)
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

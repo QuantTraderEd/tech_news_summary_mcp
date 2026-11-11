@@ -1,7 +1,5 @@
 import os
-import sys
 import site
-import json
 import pytest
 import datetime as dt
 

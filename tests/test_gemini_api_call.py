@@ -1,6 +1,4 @@
 import os
-import sys
-import logging
 import json
 
 import google.generativeai as genai

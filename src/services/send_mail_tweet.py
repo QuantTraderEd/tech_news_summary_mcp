@@ -3,19 +3,11 @@ import sys
 import site
 import logging
 import traceback
-import json
-import smtplib
 import datetime as dt
 
-from email import encoders
 from email.header import Header
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
@@ -297,7 +289,7 @@ def main(pwd: str, base_ymd: str = None):
             
         else:
             logger.warning("발송할 뉴스 데이터가 없습니다.")
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

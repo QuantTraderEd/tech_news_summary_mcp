@@ -213,7 +213,7 @@ def count_tweet_posts(tweet_usernames: list = None):
         target_users = tweet_usernames
 
     post_counts = {}
-    logger.info(f"Counting tweet posts...")
+    logger.info("Counting tweet posts...")
 
     for username in target_users:
         file_path = os.path.join(data_path, f"{username}_posts.json")

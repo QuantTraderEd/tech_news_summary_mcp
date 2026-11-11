@@ -539,7 +539,7 @@ def main(target_section: str, base_ymd: str):
             json.dump(articles, f, ensure_ascii=False, indent=2)
         logger.info(f"Articles saved to thelec_{target_section_en}_articles.json")
     
-    except Exception as e:
+    except Exception:
         err_msg = traceback.format_exc()
         logger.error(err_msg)
         sys.exit(1)

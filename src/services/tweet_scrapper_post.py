@@ -1,17 +1,12 @@
 import os
 import sys
 import site
-import traceback
 import logging
 import time
 import json
 import random
 import datetime as dt
 
-import pytz
-import undetected_chromedriver as uc
-
-from fake_useragent import UserAgent
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -21,9 +16,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (TimeoutException,
                                         NoSuchElementException,
-                                        StaleElementReferenceException,
-                                        WebDriverException,
-                                        ElementClickInterceptedException)
+                                        StaleElementReferenceException)
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
@@ -39,8 +32,6 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
-
-kst_timezone = pytz.timezone('Asia/Seoul')
 
 # --- 설정 ---
 # 조회하고 싶은 트위터 사용자 아이디 목록을 리스트로 입력하세요.
@@ -175,7 +166,7 @@ class TweetScraper:
                             return False
                         next_input_element.send_keys(verification_info)
                         self.wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Next')]"))).click()
-                        logger.info(f"인증 정보(verification_info) 입력 완료!!!")
+                        logger.info("인증 정보(verification_info) 입력 완료!!!")
                     else:
                         # could not login in now.. try again later... 애러 발생 케이스
                         logger.error("could not login in now.. try again later...!!!!")
@@ -214,7 +205,7 @@ class TweetScraper:
             logger.info("로그인 성공!")
             return True
 
-        except (TimeoutException, NoSuchElementException) as e:
+        except (TimeoutException, NoSuchElementException):
             logger.error("로그인 중 오류가 발생했습니다. CSS 선택자 또는 페이지 구조가 변경되었을 수 있습니다.", exc_info=True)
             error_page_filename = f"{pjt_home_path}/login_error_page.html"
             with open(error_page_filename, "w", encoding="utf-8") as f:
@@ -515,7 +506,7 @@ def main(base_ymd: str,
         if tweet_scraper.driver: tweet_scraper.driver.quit()
         logger.info("\n모든 작업이 완료되어 스크립트를 종료합니다.")
 
-    except Exception as e:
+    except Exception:
         # 브라우저 종료
         if tweet_scraper:
             if tweet_scraper.driver: tweet_scraper.driver.quit()

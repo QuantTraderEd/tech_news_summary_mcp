@@ -5,11 +5,9 @@ import traceback
 import json
 import smtplib
 
-from email import encoders
 from email.header import Header
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
@@ -206,7 +204,7 @@ def load_news_from_json(file_path):
     except json.JSONDecodeError:
         logger.error(f"오류: JSON 디코딩 오류 - {file_path}")
         raise
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         raise
@@ -240,7 +238,7 @@ def main(pwd: str):
             # send_mail(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, 'test', 'text')
         else:
             logger.warning("발송할 뉴스 데이터가 없습니다.")
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

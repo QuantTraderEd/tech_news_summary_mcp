@@ -2,7 +2,6 @@ import os
 import sys
 import logging
 import traceback
-import re
 import json
 import time
 import random
@@ -40,13 +39,7 @@ class NewsCrawlerEtnews:
     - 제목이 '[포토]'로 시작하는 기사는 수집에서 제외합니다.
     - 각 기사의 상세 페이지에 접속하여 본문 내용을 수집합니다.
     """
-        
-    target_section_en_dict = {
-        "06": "electronics",
-        "04": "software",
-        "03": "it",
-    }
-    
+
     def __init__(self, base_url: str):
         self.base_url = base_url   
         # 랜덤 User-Agent 생성
@@ -264,7 +257,7 @@ def main(target_section: str, base_ymd: str):
             json.dump(articles, f, ensure_ascii=False, indent=2)
         logger.info(f"Articles saved to etnews_{target_section_en}_articles.json")
         
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)    

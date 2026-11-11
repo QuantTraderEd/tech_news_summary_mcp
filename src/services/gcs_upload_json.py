@@ -104,7 +104,7 @@ def main(target_news_site: str, base_ymd: str):
                 upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
             else:
                 logger.info(f"skip target file...: '{filename}'")
-    except Exception as e:
+    except Exception:
         err_msg = traceback.format_exc()
         logger.error(err_msg)
         sys.exit(1)
@@ -123,7 +123,7 @@ def main_tweet(base_ymd: str):
                 upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
             else:
                 logger.debug(f"skip target file...: '{filename}'")
-    except Exception as e:
+    except Exception:
         err_msg = traceback.format_exc()
         logger.error(err_msg)
         sys.exit(1)

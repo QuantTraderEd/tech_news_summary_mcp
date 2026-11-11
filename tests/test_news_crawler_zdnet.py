@@ -1,14 +1,11 @@
 import os
-import sys
 import site
-import json
 import pytest
 import datetime as dt
 
 from unittest.mock import patch, MagicMock, mock_open
 
 import pytz
-from bs4 import BeautifulSoup
 
 # Add project root to the Python path
 src_path = os.path.dirname(__file__)

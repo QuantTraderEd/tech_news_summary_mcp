@@ -272,7 +272,7 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
             logger.info("="*50)
             
         
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

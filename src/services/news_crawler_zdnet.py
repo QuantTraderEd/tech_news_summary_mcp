@@ -327,7 +327,7 @@ def main(target_section: str, base_ymd: str):
         logger.info(f"Articles saved to zdnet_{target_section_en}_articles.json")
         
         
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

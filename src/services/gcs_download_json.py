@@ -2,10 +2,7 @@ import os
 import sys
 import site
 import logging
-import traceback
-import datetime as dt
 
-import pytz
 from google.cloud import storage
 
 src_path = os.path.dirname(__file__)
@@ -20,8 +17,6 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
-
-kst_timezone = pytz.timezone('Asia/Seoul')
 
 from src.services import tweet_scrapper_post
 

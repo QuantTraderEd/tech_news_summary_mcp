@@ -1,14 +1,10 @@
 import os
 import sys
 import site
-import traceback
 import logging
 import time
 import json
-import random
 import datetime as dt
-
-import pytz
 
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
@@ -17,11 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import (TimeoutException,
-                                        NoSuchElementException,
-                                        StaleElementReferenceException,
-                                        WebDriverException,
-                                        ElementClickInterceptedException)
+from selenium.common.exceptions import TimeoutException
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
@@ -35,8 +27,6 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
-
-kst_timezone = pytz.timezone('Asia/Seoul')
 
 class TweetScrapOnePost:
 
