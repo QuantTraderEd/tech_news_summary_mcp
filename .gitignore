@@ -7,7 +7,12 @@ data
 
 # python
 __pycache__
+.pytest_cache
 
-
+# secrets / local-only files
 config.json
 docker_cmd
+tweet_cookies.json
+
+# debug artifacts
+login_error_page.html

@@ -1,11 +1,22 @@
+.git
 .idea
 .env
+.DS_Store
 .pytest_cache
 venv
-data/*.json
+.venv
+
+# 런타임에 생성되는 데이터 (디렉토리 자체는 유지)
+data/*
+!data/.gitkeep
 
 # python
 __pycache__
 
+# secrets / local-only files (config.json 은 컨테이너 시작 시 생성, 쿠키는 GCS 에서 다운로드)
 config.json
 docker_cmd
+tweet_cookies.json
+
+# debug artifacts
+login_error_page.html
