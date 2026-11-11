@@ -118,13 +118,18 @@ class NewsCrawlerEtnews:
             logger.info(f"Fetching articles from {self.base_url + f'&page={page_num}'} published from {self.start_date} to {self.end_date}")
         
             html = self._fetch_html(self.base_url + f'&page={page_num}')
+            if html is None:
+                # 요청 실패 시 해당 페이지만 건너뛰고, 이미 수집한 기사는 유지한다.
+                logger.warning(f"Skip page {page_num}: failed to fetch list page.")
+                continue
             soup = BeautifulSoup(html, 'html.parser')
             
             # 데스크탑 페이지 구조: 기사 목록은 'div' 태그와 'class=list_news' 안에 'ul > li' 형태로 존재        
             article_list_ul = soup.find('ul', class_='news_list')
             if not article_list_ul:
-                logger.warning("Could not find 'ul' inside the news_list container.")
-                return []
+                # 해당 페이지만 건너뛴다. (return [] 로 이전 페이지 결과까지 버리지 않도록)
+                logger.warning(f"Skip page {page_num}: could not find 'ul' inside the news_list container.")
+                continue
 
             list_items = article_list_ul.find_all('li')
 
