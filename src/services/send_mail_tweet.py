@@ -246,6 +246,11 @@ def send_email_with_tweet(sender_email, sender_password, receiver_email_list, ma
     mail_server.quit()
     
 def main(pwd: str, base_ymd: str = None):
+    # pwd 가 None(환경변수 NVR_MAIL_PWD 미설정) 이거나 빈 문자열이면 발송 불가
+    if not pwd:
+        logger.error("pwd is empty!!")
+        sys.exit(1)
+
     # 사용자 정보 설정 (실제 정보로 변경 필요)
     SENDER_EMAIL = ""  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
     SENDER_PASSWORD = pwd + 'CH'   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
@@ -261,10 +266,6 @@ def main(pwd: str, base_ymd: str = None):
         base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")
 
     SENDER_EMAIL = RECEIVER_EMAIL_LIST[0]
-    
-    if pwd == "":
-        logger.error("pwd is empty!!")
-        sys.exit(1)
 
     try:
         # Tweet 데이터 로드

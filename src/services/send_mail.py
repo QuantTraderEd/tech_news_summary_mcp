@@ -212,6 +212,11 @@ def load_news_from_json(file_path):
         raise
 
 def main(pwd: str):
+    # pwd 가 None(환경변수 NVR_MAIL_PWD 미설정) 이거나 빈 문자열이면 발송 불가
+    if not pwd:
+        logger.error("pwd is empty!!")
+        sys.exit(1)
+
     # 사용자 정보 설정 (실제 정보로 변경 필요)
     SENDER_EMAIL = ""  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
     SENDER_PASSWORD = pwd + 'CH'   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
@@ -224,10 +229,6 @@ def main(pwd: str):
         sys.exit(1)
         
     SENDER_EMAIL = RECEIVER_EMAIL_LIST[0]
-    
-    if pwd == "":
-        logger.error("pwd is empty!!")
-        sys.exit(1)
 
     try:
         # 뉴스 데이터 로드
