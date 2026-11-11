@@ -32,24 +32,24 @@ fi
 
 # VERIFICATION-INFO 환경 변수가 설정되어 있는지 확인합니다.
 if [ -z "${!VERIFICATION_INFO_VAR_NAME}" ]; then
-  echo "오류: ${VERIFICATION_INFO_VAR_NAME} 환경 변수가 설정되지 않았습니다."
+  echo "ERROR: ${VERIFICATION_INFO_VAR_NAME} 환경 변수가 설정되지 않았습니다."
   echo "예시: export ${VERIFICATION_INFO_VAR_NAME}=\"your_verification_info_value\""
   exit 1
 fi
 
 # RECEIVER_EMAIL_LIST 환경 변수가 설정되어 있는지 확인합니다.
 if [ -z "${!RECEIVER_EMAIL_LIST_VAR_NAME}" ]; then
-  echo "오류: ${RECEIVER_EMAIL_LIST_VAR_NAME} 환경 변수가 설정되지 않았습니다."
+  echo "ERROR: ${RECEIVER_EMAIL_LIST_VAR_NAME} 환경 변수가 설정되지 않았습니다."
   echo "예시: export ${RECEIVER_EMAIL_LIST_VAR_NAME}=\"alice@example.com,bob@example.com,charlie@example.com\""
   exit 1
 fi
 
 # 환경 변수 값을 가져옵니다.
 API_KEY_VALUE="${!API_KEY_VAR_NAME}"
-TWEET_USERNAME_VALUE=" ${!TWEET_USERNAME_VAR_NAME}"
-TWEET_PASSWORD_VALUE="${!TWEET_PASSWORD_VAR_NAME}" 
+TWEET_USERNAME_VALUE="${!TWEET_USERNAME_VAR_NAME}"
+TWEET_PASSWORD_VALUE="${!TWEET_PASSWORD_VAR_NAME}"
 VERIFICATION_INFO_VALUE="${!VERIFICATION_INFO_VAR_NAME}"
-IFS=',' read -ra EMAIL_ARRAY <<< "$RECEIVER_EMAIL_LIST"
+IFS=',' read -ra EMAIL_ARRAY <<< "${!RECEIVER_EMAIL_LIST_VAR_NAME}"
 
 # JSON 형식으로 출력할 문자열 준비
 EMAIL_JSON=$(printf '"%s",' "${EMAIL_ARRAY[@]}")
