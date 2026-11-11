@@ -15,7 +15,6 @@
 ## 트위터 게시글 수집 (Selenium 스크래핑)
 - **수집 대상**: `src/services/tweet_scrapper_post.py` 의 `TARGET_USERNAMES`, `TARGET_USERNAMES_2ND`
 - **번역/요약**: 수집한 게시글을 Gemini API로 번역·요약하고, 일자별 누적 파일(`summarized_posts_agg.json`)과 비교해 중복 게시글에 `[중복]` 태그 처리
-- X API(tweepy) 방식의 `twitter_collector.py` 는 현재 사용하지 않습니다.
 
 ## 배치 실행 (POST /execute-batch)
 요청 본문: `{"batch_type": "<type>", "params": {...}}` — 배치는 응답 반환 후 백그라운드로 실행됩니다.
@@ -67,8 +66,7 @@ tech_news_summary_mcp/
 │       ├── tweet_daily_dup_check.py   # 일자별 Tweet 중복 체크/정리
 │       ├── tweet_scrap_one_post.py    # (수동 실행용) URL 목록으로 개별 게시글 수집
 │       ├── tweet_scrapper_post.py     # Tweet 스크래퍼 (Selenium)
-│       ├── tweet_summarizer.py        # Tweet 번역/요약 (Gemini)
-│       └── twitter_collector.py       # (미사용) X API(tweepy) 방식 수집기
+│       └── tweet_summarizer.py        # Tweet 번역/요약 (Gemini)
 ├── tests                          # 단위테스트 
 └── requirements.txt    
 ```
