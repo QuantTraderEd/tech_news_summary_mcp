@@ -27,6 +27,7 @@ def scraper():
         # Assign mock driver and wait objects directly to the instance
         scraper_instance.driver = MagicMock()
         scraper_instance.wait = MagicMock()
+        scraper_instance.actions = MagicMock()
         yield scraper_instance
 
 def test_set_target_date_range(scraper):
@@ -71,18 +72,29 @@ def test_login_to_twitter_success(mock_sleep, scraper):
     
     assert result is True
     scraper.driver.get.assert_called_once_with("https://x.com/login")
-    mock_user_input.send_keys.assert_called_once_with("testuser")
-    mock_next_button.click.assert_called_once()
+    # 사용자 이름은 human_like_typing 으로 한 글자씩 입력된다.
+    typed_username = "".join(call.args[0] for call in mock_user_input.send_keys.call_args_list)
+    assert typed_username == "testuser"
+    # 입력창/Next 버튼 클릭은 ActionChains 를 통해 수행된다.
+    scraper.actions.move_to_element.assert_any_call(mock_user_input)
+    scraper.actions.move_to_element.assert_any_call(mock_next_button)
     mock_password_input.send_keys.assert_called_once_with("testpass")
     mock_login_button.click.assert_called_once()
 
 @patch('src.services.tweet_scrapper_post.time.sleep')
-def test_login_to_twitter_failure_on_timeout(mock_sleep, scraper):
+@patch('src.services.tweet_scrapper_post.open', new_callable=mock_open)
+def test_login_to_twitter_failure_on_timeout(mock_file_open, mock_sleep, scraper):
     """Test failed login due to a TimeoutException."""
     scraper.wait.until.side_effect = TimeoutException("Element not found.")
+    scraper.driver.page_source = "<html>error page</html>"
 
     result = scraper.login_to_twitter("testuser", "testpass", "info")
     assert result is False
+
+    # 오류 페이지 덤프는 목 처리된 open 으로만 기록되어야 한다 (실제 파일을 건드리지 않음).
+    expected_filepath = f"{pjt_home_path}/login_error_page.html"
+    mock_file_open.assert_called_once_with(expected_filepath, "w", encoding="utf-8")
+    mock_file_open().write.assert_called_once_with("<html>error page</html>")
 
 @patch('src.services.tweet_scrapper_post.time.sleep')
 @patch('src.services.tweet_scrapper_post.open', new_callable=mock_open)
