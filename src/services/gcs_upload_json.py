@@ -65,29 +65,6 @@ def upload_local_file_to_gcs(local_file_path: str,
     
     return 0
             
-def local_test():
-    # 테스트를 위해 'data' 디렉토리와 더미 JSON 파일 생성
-    os.makedirs(f'{pjt_home_path}/data', exist_ok=True)
-    
-    local_file_path_1 = f'{pjt_home_path}/data/test_news_1.json'
-    local_file_path_2 = f'{pjt_home_path}/data/test_news_2.json'
-    
-    with open(local_file_path_1, 'w') as f:
-        f.write('{"title": "테스트 뉴스 1", "content": "이것은 테스트 기사입니다."}')
-    with open(local_file_path_2, 'w') as f:
-        f.write('{"title": "테스트 뉴스 2", "content": "또 다른 테스트 기사입니다."}')
-
-    # 특정 날짜로 업로드 (예: 2020년 1월 1일)
-    logger.info("--- 특정 날짜 (20200101)로 업로드 시작 ---")
-    upload_local_file_to_gcs(local_file_path_1, date_str='20200101')
-    upload_local_file_to_gcs(local_file_path_2, date_str='20200101')
-    logger.info("--- 특정 날짜 (20200101)로 업로드 완료 ---")
-
-    # 더미 파일 정리 (선택 사항)
-    os.remove(f'{pjt_home_path}/data/test_news_1.json')
-    os.remove(f'{pjt_home_path}/data/test_news_2.json')
-    # os.rmdir('data')
-    
 def main(target_news_site: str, base_ymd: str):
     """
     articles.json 파일 GCS 업로드 메인 배치
@@ -104,25 +81,6 @@ def main(target_news_site: str, base_ymd: str):
                 upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
             else:
                 logger.info(f"skip target file...: '{filename}'")
-    except Exception:
-        err_msg = traceback.format_exc()
-        logger.error(err_msg)
-        sys.exit(1)
-
-def main_tweet(base_ymd: str):
-    """
-    posts.json 파일 GCS 업로드 메인 배치
-    :param str base_ymd: GCS 업로드 날짜 (yyyymmdd)
-    :return: None
-    """
-    local_data_dir = f'{pjt_home_path}/data'
-    try:
-        for filename in os.listdir(local_data_dir):
-            if filename.endswith('_posts.json') and not filename.startswith('summarized'):
-                local_file_path = os.path.join(local_data_dir, filename)
-                upload_local_file_to_gcs(local_file_path, date_str=base_ymd)
-            else:
-                logger.debug(f"skip target file...: '{filename}'")
     except Exception:
         err_msg = traceback.format_exc()
         logger.error(err_msg)
@@ -161,6 +119,5 @@ if __name__ == "__main__":
     except ValueError:
         parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
 
-    # local_test()
     main(target_news_site=args.target_news_site, base_ymd=args.base_ymd)
     

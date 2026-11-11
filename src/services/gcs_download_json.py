@@ -70,11 +70,6 @@ def download_gcs_to_local(
 
     return 0
     
-def local_test():
-    file_name = 'rwang07_posts.json'
-    ret = download_gcs_to_local(file_name, date_str='20250711')
-    logger.info(f"ret => {ret}")
-    
 def download_gcs_posts_json_to_local(target_user_list: list = None, target_date: str = '20000101'):
     if not target_user_list:
         target_user_list = tweet_scrapper_post.TARGET_USERNAMES
@@ -86,5 +81,4 @@ def download_gcs_posts_json_to_local(target_user_list: list = None, target_date:
 
 
 if __name__ == '__main__':
-    # local_test()
     download_gcs_posts_json_to_local(target_date='20250713')
