@@ -539,6 +539,14 @@ if __name__ == "__main__":
         nargs='?'
     )
 
+    # tweet_username 인자 추가
+    parser.add_argument(
+        "-u", "--tweet_username",
+        type=str,
+        default=None,
+        help="특정 사용자 한 명만 수집할 때 지정, 미입력 시 TARGET_USERNAMES 전체 수집",
+    )
+
     args = parser.parse_args()
 
     # base_ymd 유효성 검증
@@ -547,4 +555,4 @@ if __name__ == "__main__":
     except ValueError:
         parser.error(f"잘못된 날짜 형식입니다: {args.base_ymd}. yyyymmdd 형식으로 입력해주세요.")
 
-    main(base_ymd=args.base_ymd, posts_json_upload=False, tweet_username='IanCutress')
+    main(base_ymd=args.base_ymd, posts_json_upload=False, tweet_username=args.tweet_username)

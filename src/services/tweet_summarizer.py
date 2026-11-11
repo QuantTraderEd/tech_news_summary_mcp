@@ -7,7 +7,6 @@ import json
 import time
 import datetime as dt
 
-import pytz
 import google.generativeai as genai
 
 src_path = os.path.dirname(__file__)
@@ -27,8 +26,6 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
-
-kst_timezone = pytz.timezone('Asia/Seoul')
 
 # --- 1. 설정 ---
 
@@ -289,8 +286,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "base_ymd",
         type=str,
-        default=dt.datetime.now(kst_timezone).strftime("%Y%m%d"), # 기본값은 현재 날짜
-        help="뉴스 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
+        default=dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d"),  # 기본값은 현재 날짜 (UTC 기준)
+        help="post 수집 기준 일자 (yyyymmdd), 미입력 시 현재 날짜(UTC)가 기본값",
         nargs='?'
     )
     
