@@ -235,10 +235,15 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
             
             # (base_ymd - 1)/summarized_posts_agg.json 파일 과 (base_ymd)/summarized_posts_agg.json (업데이트하기 전) 파일 합체
             summarized_prev_posts_agg = []
-            with open(output_filename, 'r', encoding='utf-8') as f:
-                summarized_prev_posts_agg = json.load(f)
-                logger.info("loaded summarized_prev_posts_agg.json!!")
-                logger.info(f"summarized_prev_posts_agg cnt => {len(summarized_prev_posts_agg)}")
+            if ret == 0:
+                with open(output_filename, 'r', encoding='utf-8') as f:
+                    summarized_prev_posts_agg = json.load(f)
+                    logger.info("loaded summarized_prev_posts_agg.json!!")
+                    logger.info(f"summarized_prev_posts_agg cnt => {len(summarized_prev_posts_agg)}")
+            else:
+                # 전일자 파일을 받지 못한 경우 로컬 파일은 방금 저장한 당일자 agg 이므로 읽으면 안 된다.
+                # (읽으면 당일 게시물 전체가 전일자 게시물로 취급되어 모두 [중복] 태그가 붙음)
+                logger.warning(f"{base_ymd_prev}/summarized_posts_agg.json 이 없어 전일자 중복 체크를 건너뜁니다.")
                 
             summarized_union_posts_agg = summarized_prev_posts_agg # + summarized_old_posts_agg  # 우선 prev_post_agg 파일만 적용
             
