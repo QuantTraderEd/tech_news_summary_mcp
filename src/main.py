@@ -89,14 +89,14 @@ async def execute_batch(backgroundtasks: BackgroundTasks, payload: BatchParams):
         else:
             msg = f"Error: Unknown batch type '{batch_type}'."
             logger.warning(msg)
-            # Cloud Tasks가 재시도하지 않도록 성공(2xx) 응답을 반환하는 것이 중요
+            # 호출 측(Cloud Scheduler 등)이 재시도하지 않도록 성공(2xx) 응답을 반환하는 것이 중요
             return Response(status_code=204)
 
         logger.info(f"Successfully run batch.. batch will run background..: {batch_type}")
         return Response(status_code=200) # 성공적으로 완료되면 200 OK
     except Exception as e:
-        # 예외 발생 시, Cloud Tasks가 재시도하도록 에러(5xx) 응답을 반환
-        logger.info(f"Error during batch execution: {e}", exc_info=True)
+        # 예외 발생 시, 호출 측이 재시도하도록 에러(5xx) 응답을 반환
+        logger.error(f"Error during batch execution: {e}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Batch job failed: {e}")
         
 
@@ -125,14 +125,18 @@ def run_news_batch():
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail.main(pwd)
     
-def run_tweet_batch():
-    base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
-
+def download_tweet_cookies():
+    """X(트위터) 로그인에 사용할 쿠키 파일을 GCS 에서 프로젝트 루트로 내려받습니다."""
     gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
                                             bucket_name='gcs-private-pjt-data',
                                             gcs_base_path='config',
                                             date_str='20000101',
                                             local_file_path=pjt_home_path)
+
+def run_tweet_batch():
+    base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
+
+    download_tweet_cookies()
     
     tweet_scrapper_post.main(base_ymd, True)
     tweet_summarizer.main(base_ymd)
@@ -146,11 +150,7 @@ def run_tweet_batch():
 def run_tweet_2nd_batch():
     base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
 
-    gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
-                                            bucket_name='gcs-private-pjt-data',
-                                            gcs_base_path='config',
-                                            date_str='20000101',
-                                            local_file_path=pjt_home_path)
+    download_tweet_cookies()
 
     tweet_scrapper_post.main(base_ymd, True, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
     tweet_summarizer.main(base_ymd, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
@@ -180,11 +180,7 @@ def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
     if not base_ymd:
         base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
         
-    gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
-                                            bucket_name='gcs-private-pjt-data',
-                                            gcs_base_path='config',
-                                            date_str='20000101',
-                                            local_file_path=pjt_home_path)
+    download_tweet_cookies()
     
     tweet_scrapper_post.main(base_ymd, True, tweet_username)
     
