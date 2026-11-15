@@ -249,6 +249,9 @@ def messages(caplog, level: int) -> list:
     return [r.getMessage() for r in caplog.records if r.levelno == level]
 
 
+CRITICAL_PREFIX = "[쿠키 로그인 실패] 쿠키 로그인에 실패해 수집을 진행할 수 없습니다."
+
+
 def assert_no_cookie_value_logged(caplog):
     """쿠키 값은 어떤 로그에도 남지 않아야 한다."""
     for record in caplog.records:
@@ -350,12 +353,13 @@ def test_login_with_cookies_success(scraper, login_env, caplog):
     assert scraper.login_error_page_path is None
     assert not (login_env / "data").exists()
     assert not messages(caplog, logging.ERROR)
+    assert not messages(caplog, logging.CRITICAL)
     assert_no_cookie_value_logged(caplog)
 
 
 def test_login_with_cookies_observe_mode_continues_on_check_failure(scraper, login_env, caplog):
-    """관찰 모드(기본값): 로그인 확인이 실패해도 화면 소스만 저장하고 True 를 반환한다."""
-    assert tsp.ENFORCE_LOGIN_CHECK is False
+    """관찰 모드: 로그인 확인이 실패해도 화면 소스만 저장하고 True 를 반환한다."""
+    assert tsp.ENFORCE_LOGIN_CHECK is False  # login_env 가 모드를 명시적으로 patch 한다.
 
     with patch.object(scraper, "is_logged_in", return_value=False):
         assert scraper.login_with_cookies() is True
@@ -366,6 +370,7 @@ def test_login_with_cookies_observe_mode_continues_on_check_failure(scraper, log
     assert saved[0].read_text(encoding="utf-8") == "<html>logged out page</html>"
     assert scraper.login_error_page_path == str(saved[0])
     assert any("관찰 모드" in m for m in messages(caplog, logging.WARNING))
+    assert not messages(caplog, logging.CRITICAL)
     assert_no_cookie_value_logged(caplog)
 
 
@@ -378,7 +383,10 @@ def test_login_with_cookies_enforce_mode_fails_on_check_failure(scraper, login_e
 
     assert len(list((login_env / "data").glob("login_error_page_*.html"))) == 1
     assert scraper.login_error_page_path is not None
-    assert any("강제 모드" in m for m in messages(caplog, logging.ERROR))
+    crit = messages(caplog, logging.CRITICAL)
+    assert len(crit) == 1
+    assert crit[0].startswith(CRITICAL_PREFIX) and "강제 모드" in crit[0] and "로그인 상태 확인 실패" in crit[0]
+    assert_no_cookie_value_logged(caplog)
 
 
 def test_login_with_cookies_enforce_mode_succeeds_when_logged_in(scraper, login_env, monkeypatch):
@@ -416,6 +424,8 @@ def test_login_with_cookies_fails_when_cookie_file_missing(scraper, login_env, m
     mock_check.assert_not_called()
     scraper.driver.get.assert_not_called()
     assert any("[쿠키 파일 오류]" in m for m in messages(caplog, logging.ERROR))
+    crit = messages(caplog, logging.CRITICAL)
+    assert len(crit) == 1 and crit[0].startswith(CRITICAL_PREFIX) and "쿠키 파일 오류" in crit[0]
 
 
 @pytest.mark.parametrize("enforce", [False, True])
@@ -435,6 +445,8 @@ def test_login_with_cookies_fails_when_cookie_file_invalid(scraper, login_env, m
     mock_check.assert_not_called()
     scraper.driver.add_cookie.assert_not_called()
     assert any("[쿠키 파일 오류]" in m for m in messages(caplog, logging.ERROR))
+    crit = messages(caplog, logging.CRITICAL)
+    assert len(crit) == 1 and crit[0].startswith(CRITICAL_PREFIX) and "쿠키 파일 오류" in crit[0]
 
 
 def test_login_with_cookies_fails_on_unexpected_browser_error(scraper, login_env, caplog):
@@ -443,6 +455,8 @@ def test_login_with_cookies_fails_on_unexpected_browser_error(scraper, login_env
 
     assert scraper.login_with_cookies() is False
     assert any("[쿠키 로그인 실패]" in m for m in messages(caplog, logging.ERROR))
+    crit = messages(caplog, logging.CRITICAL)
+    assert len(crit) == 1 and crit[0].startswith(CRITICAL_PREFIX) and "쿠키 적용 중 오류" in crit[0]
     assert_no_cookie_value_logged(caplog)
 
 
@@ -793,3 +807,93 @@ def test_main_single_user_mode_zero_posts_is_ok(main_env):
         tsp.main(TODAY_YMD, posts_json_upload=True, tweet_username="u1")  # sys.exit 하지 않아야 한다
 
     mock_upload.assert_called_once_with("u1", TODAY_YMD)
+
+
+# --- 쿠키 로그인 실패 CRITICAL 로그 (경로별 구분 / main 연동) ---
+
+def test_login_with_cookies_unexpected_error_logs_error_with_traceback_and_critical(scraper, login_env, caplog):
+    """경로 2: traceback 포함 ERROR 와 CRITICAL 이 각각 1건 남고, CRITICAL 에는 예외 메시지(쿠키 값)가 없다."""
+    scraper.driver.add_cookie.side_effect = Exception(f"bad cookie {FAKE_AUTH_TOKEN_VALUE} {FAKE_CT0_VALUE}")
+
+    assert scraper.login_with_cookies() is False
+
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR and "예상치 못한 오류" in r.getMessage()]
+    assert len(errors) == 1 and errors[0].exc_info is not None
+    crit = [r for r in caplog.records if r.levelno == logging.CRITICAL]
+    assert len(crit) == 1
+    assert crit[0].exc_info is None
+    text = crit[0].getMessage()
+    assert text.startswith(CRITICAL_PREFIX)
+    for value in FAKE_COOKIE_VALUES:
+        assert value not in text
+    assert "bad cookie" not in text
+
+
+def test_login_with_cookies_critical_reasons_are_distinguishable(scraper, login_env, monkeypatch, caplog):
+    """세 실패 경로의 CRITICAL 문구는 공통 접두어로 시작하지만 사유 부분이 서로 다르다."""
+    collected = {}
+
+    # 경로 1: 쿠키 파일 없음
+    monkeypatch.setattr(tsp, "COOKIE_FILE", str(login_env / "no_such_cookies.json"))
+    caplog.clear()
+    assert scraper.login_with_cookies() is False
+    collected["file"] = messages(caplog, logging.CRITICAL)
+
+    # 경로 2: 쿠키 적용 중 예외
+    monkeypatch.setattr(tsp, "COOKIE_FILE", str(login_env / "tweet_cookies.json"))
+    scraper.driver.add_cookie.side_effect = Exception("boom")
+    caplog.clear()
+    assert scraper.login_with_cookies() is False
+    collected["apply"] = messages(caplog, logging.CRITICAL)
+    scraper.driver.add_cookie.side_effect = None
+
+    # 경로 3: 강제 모드에서 로그인 확인 실패
+    monkeypatch.setattr(tsp, "ENFORCE_LOGIN_CHECK", True)
+    caplog.clear()
+    with patch.object(scraper, "is_logged_in", return_value=False):
+        assert scraper.login_with_cookies() is False
+    collected["enforce"] = messages(caplog, logging.CRITICAL)
+
+    assert all(len(v) == 1 and v[0].startswith(CRITICAL_PREFIX) for v in collected.values())
+    texts = {k: v[0] for k, v in collected.items()}
+    assert len(set(texts.values())) == 3
+    assert "쿠키 파일 오류" in texts["file"]
+    assert "쿠키 적용 중 오류" in texts["apply"]
+    assert "로그인 상태 확인 실패" in texts["enforce"] and "강제 모드" in texts["enforce"]
+
+
+def test_login_with_cookies_observe_mode_has_warning_but_no_critical(scraper, login_env, monkeypatch, caplog):
+    """관찰 모드(True 반환): WARNING 은 남고 CRITICAL 은 없다."""
+    monkeypatch.setattr(tsp, "ENFORCE_LOGIN_CHECK", False)
+    with patch.object(scraper, "is_logged_in", return_value=False):
+        assert scraper.login_with_cookies() is True
+    assert any("관찰 모드" in m for m in messages(caplog, logging.WARNING))
+    assert not messages(caplog, logging.CRITICAL)
+
+
+@pytest.mark.parametrize("scenario", ["cookie_file_missing", "apply_error", "enforce_check_failed"])
+def test_main_logs_critical_and_exits_when_cookie_login_fails(main_env, tmp_path, monkeypatch, caplog, scenario):
+    """실제 login_with_cookies 를 거쳐 main() 을 호출해도 CRITICAL 1건이 남고 sys.exit(1) 로 끝난다."""
+    cookie_path = tmp_path / "tweet_cookies.json"
+    cookie_path.write_text(json.dumps(make_fake_cookies(dt.datetime.now(dt.timezone.utc))), encoding="utf-8")
+    monkeypatch.setattr(tsp, "COOKIE_FILE", str(cookie_path))
+    monkeypatch.setattr(tsp, "pjt_home_path", str(tmp_path))
+    monkeypatch.setattr(tsp, "ENFORCE_LOGIN_CHECK", scenario == "enforce_check_failed")
+    main_env.page_source = "<html>logged out</html>"
+    if scenario == "cookie_file_missing":
+        monkeypatch.setattr(tsp, "COOKIE_FILE", str(tmp_path / "no_such_cookies.json"))
+    elif scenario == "apply_error":
+        main_env.add_cookie.side_effect = Exception("boom")
+
+    with patch('src.services.tweet_scrapper_post.time.sleep'), \
+         patch.object(tsp.TweetScraper, "is_logged_in", return_value=False), \
+         patch.object(tsp.TweetScraper, "upload_login_error_page_to_gcs"), \
+         patch.object(tsp.TweetScraper, "scrape_user_post") as mock_scrape:
+        with pytest.raises(SystemExit) as exc_info:
+            tsp.main(TODAY_YMD, posts_json_upload=True, tweet_usernames=["u1"])
+
+    assert exc_info.value.code == 1
+    mock_scrape.assert_not_called()
+    crit = messages(caplog, logging.CRITICAL)
+    assert len(crit) == 1 and crit[0].startswith(CRITICAL_PREFIX)
+    assert_no_cookie_value_logged(caplog)

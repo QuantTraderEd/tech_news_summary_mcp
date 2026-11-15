@@ -72,11 +72,11 @@ TARGET_USERNAMES_2ND = [
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
 # 쿠키 로그인 후 로그인 상태 확인(is_logged_in) 결과를 수집 진행 여부에 반영할지 설정합니다.
-# - False(관찰 모드, 기본값): 로그인 확인에 실패해도 ERROR 로그와 화면 소스 저장만 하고 수집을 계속합니다.
+# - False(관찰 모드): 로그인 확인에 실패해도 ERROR 로그와 화면 소스 저장만 하고 수집을 계속합니다.
 #   로그인 상태의 /home 화면에 확인용 요소(LOGGED_IN_ELEMENT_XPATH)가 실제로 나오는지 아직 운영 환경에서
 #   검증하지 못했기 때문에, 잘못된 판정으로 배치 전체가 멈추는 일을 막기 위한 설정입니다.
 # - True(강제 모드): 로그인 확인에 실패하면 login_with_cookies() 가 False 를 반환해 스크립트를 즉시 중단합니다.
-ENFORCE_LOGIN_CHECK = False
+ENFORCE_LOGIN_CHECK = True
 # 사용자 목록 수집 중 연속으로 이 인원만큼 수집에 실패하면 로그인 상태를 재확인한 뒤 수집을 중단합니다.
 MAX_CONSECUTIVE_SCRAPE_FAILURES = 3
 # 로그인 쿠키 만료까지 남은 일수가 이 값 이내이면 경고합니다. (쿠키는 주 1회 수동으로 갱신)
@@ -398,12 +398,14 @@ class TweetScraper:
         - 쿠키 파일이 없거나 형식이 잘못됐으면 ENFORCE_LOGIN_CHECK 값과 무관하게 False 를 반환합니다.
         - 로그인 확인에 실패하면 화면 소스를 data/ 아래에 저장하고,
           ENFORCE_LOGIN_CHECK 가 True(강제 모드)이면 False, False(관찰 모드)이면 True 를 반환합니다.
+        - False 를 반환할 때는 '[쿠키 로그인 실패] 쿠키 로그인에 실패해' 로 시작하는 CRITICAL 로그를 남깁니다.
         :return: 수집을 계속해도 되면 True, 중단해야 하면 False
         """
         self.login_error_page_path = None
 
         cookies = self.load_cookies()
         if cookies is None:
+            logger.critical("[쿠키 로그인 실패] 쿠키 로그인에 실패해 수집을 진행할 수 없습니다. (사유: 쿠키 파일 오류)")
             return False
         self.check_cookie_expiry(cookies)
 
@@ -432,6 +434,7 @@ class TweetScraper:
 
         except Exception as e:
             logger.error(f"[쿠키 로그인 실패] 쿠키 로그인 중 예상치 못한 오류 발생: {e}", exc_info=True)
+            logger.critical("[쿠키 로그인 실패] 쿠키 로그인에 실패해 수집을 진행할 수 없습니다. (사유: 쿠키 적용 중 오류)")
             return False
 
         if logged_in:
@@ -441,7 +444,10 @@ class TweetScraper:
         self.save_login_error_page()
 
         if ENFORCE_LOGIN_CHECK:
-            logger.error("ENFORCE_LOGIN_CHECK=True(강제 모드)이므로 로그인 확인 실패로 스크립트를 중단합니다.")
+            logger.critical(
+                "[쿠키 로그인 실패] 쿠키 로그인에 실패해 수집을 진행할 수 없습니다. "
+                "(사유: 로그인 상태 확인 실패, ENFORCE_LOGIN_CHECK=True 강제 모드이므로 스크립트를 중단합니다.)"
+            )
             return False
 
         logger.warning("ENFORCE_LOGIN_CHECK=False(관찰 모드)이므로 로그인 확인 실패를 기록만 하고 수집을 계속합니다.")
