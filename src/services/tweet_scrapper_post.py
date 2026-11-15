@@ -6,6 +6,7 @@ import time
 import json
 import random
 import datetime as dt
+from urllib.parse import urlparse
 
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
@@ -70,8 +71,39 @@ TARGET_USERNAMES_2ND = [
 
 # 스크롤을 몇 번 내릴지 설정합니다. (숫자가 클수록 더 많은 게시글을 가져옵니다)
 SCROLL_COUNT = 5
+# 쿠키 로그인 후 로그인 상태 확인(is_logged_in) 결과를 수집 진행 여부에 반영할지 설정합니다.
+# - False(관찰 모드, 기본값): 로그인 확인에 실패해도 ERROR 로그와 화면 소스 저장만 하고 수집을 계속합니다.
+#   로그인 상태의 /home 화면에 확인용 요소(LOGGED_IN_ELEMENT_XPATH)가 실제로 나오는지 아직 운영 환경에서
+#   검증하지 못했기 때문에, 잘못된 판정으로 배치 전체가 멈추는 일을 막기 위한 설정입니다.
+# - True(강제 모드): 로그인 확인에 실패하면 login_with_cookies() 가 False 를 반환해 스크립트를 즉시 중단합니다.
+ENFORCE_LOGIN_CHECK = False
+# 사용자 목록 수집 중 연속으로 이 인원만큼 수집에 실패하면 로그인 상태를 재확인한 뒤 수집을 중단합니다.
+MAX_CONSECUTIVE_SCRAPE_FAILURES = 3
+# 로그인 쿠키 만료까지 남은 일수가 이 값 이내이면 경고합니다. (쿠키는 주 1회 수동으로 갱신)
+COOKIE_EXPIRY_WARNING_DAYS = 7
+# 로그인에 필요한 쿠키 이름 (만료 점검 대상)
+LOGIN_COOKIE_NAMES = ("auth_token", "ct0")
+# 로그인 상태에서만 보이는 화면 요소. 하나라도 나타나면 로그인된 것으로 판정합니다.
+LOGGED_IN_ELEMENT_XPATH = (
+    "//a[@data-testid='AppTabBar_Home_Link']"
+    " | //*[@data-testid='SideNav_AccountSwitcher_Button']"
+    " | //div[@data-testid='primaryColumn']"
+)
+# 로그인 화면 URL 경로. 현재 URL 이 이 경로이면 로그인되지 않은 것으로 판정합니다.
+LOGIN_PAGE_PATHS = ("/login", "/i/flow/login")
 # 설정 파일 이름
 CONFIG_FILE = f"{pjt_home_path}/config.json"
+# 로그인 쿠키 파일 이름 (GCS 에서 내려받아 사용)
+COOKIE_FILE = f"{pjt_home_path}/tweet_cookies.json"
+
+
+def is_login_page_url(url: str) -> bool:
+    """
+    URL 이 X(트위터) 로그인 화면(/login, /i/flow/login 등)인지 확인합니다.
+    """
+    path = urlparse(url or "").path.rstrip("/")
+    return any(path == login_path or path.startswith(login_path + "/") for login_path in LOGIN_PAGE_PATHS)
+
 
 class TweetScraper:
 
@@ -81,6 +113,8 @@ class TweetScraper:
         self.actions = None
         self.end_date = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=24)
         self.start_date = self.end_date - dt.timedelta(days=2)
+        # 쿠키 로그인 확인 실패 시 저장한 화면 소스 파일 경로 (저장하지 않았으면 None)
+        self.login_error_page_path = None
 
     def set_target_date_range(self, start_date: dt.datetime, end_date: dt.datetime):
         """
@@ -216,18 +250,169 @@ class TweetScraper:
             logger.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
             return False
 
-    def login_to_tweeter(self):
+    def load_cookies(self):
+        """
+        쿠키 파일(tweet_cookies.json)을 읽어 쿠키 dict 리스트를 반환합니다.
+        파일이 없거나 JSON 형식이 잘못됐으면 [쿠키 파일 오류] ERROR 로그를 남기고 None 을 반환합니다.
+        (쿠키 값은 로그에 남기지 않습니다)
+        """
+        try:
+            with open(COOKIE_FILE, "r") as file:
+                cookies = json.load(file)
+        except FileNotFoundError:
+            logger.error(f"[쿠키 파일 오류] 쿠키 파일({COOKIE_FILE})이 없습니다. "
+                         "GCS 의 tweet_cookies.json 을 확인해 주세요.")
+            return None
+        except ValueError as e:
+            # JSONDecodeError 메시지에는 오류 위치만 담기고 파일 내용은 담기지 않습니다.
+            logger.error(f"[쿠키 파일 오류] 쿠키 파일({COOKIE_FILE})의 JSON 형식이 올바르지 않습니다. "
+                         f"tweet_cookies.json 을 다시 내보내 갱신해 주세요. ({e})")
+            return None
+        except OSError as e:
+            logger.error(f"[쿠키 파일 오류] 쿠키 파일({COOKIE_FILE})을 읽지 못했습니다: {e}")
+            return None
+
+        if not isinstance(cookies, list) or not cookies or not all(isinstance(cookie, dict) for cookie in cookies):
+            logger.error(f"[쿠키 파일 오류] 쿠키 파일({COOKIE_FILE})의 형식이 올바르지 않습니다. "
+                         "쿠키 정보(dict)가 1개 이상 든 리스트여야 합니다. tweet_cookies.json 을 다시 내보내 갱신해 주세요.")
+            return None
+
+        logger.info(f"쿠키 파일을 읽었습니다. (쿠키 {len(cookies)}개)")
+        return cookies
+
+    def check_cookie_expiry(self, cookies: list, now: dt.datetime = None):
+        """
+        로그인에 필요한 쿠키(LOGIN_COOKIE_NAMES)의 만료까지 남은 일수를 로그로 남깁니다.
+        경고만 하고 로그인 진행 여부에는 영향을 주지 않습니다. (쿠키 값은 로그에 남기지 않습니다)
+        :param list cookies: 쿠키 파일에서 읽은 쿠키 dict 리스트 (expirationDate 또는 expiry 키 사용)
+        :param dt.datetime now: 기준 시각, 미지정 시 현재 시각 (UTC)
+        """
+        if now is None:
+            now = dt.datetime.now(dt.timezone.utc)
+
+        for cookie_name in LOGIN_COOKIE_NAMES:
+            cookie = next((c for c in cookies if c.get('name') == cookie_name), None)
+            if cookie is None:
+                logger.error(f"[쿠키 누락] 로그인에 필요한 {cookie_name} 쿠키가 쿠키 파일에 없습니다. "
+                             "로그인에 실패할 수 있으니 tweet_cookies.json 을 갱신해 주세요.")
+                continue
+
+            expires_at = cookie.get('expirationDate', cookie.get('expiry'))
+            if expires_at is None:
+                logger.info(f"{cookie_name} 쿠키에 만료 시각 정보가 없습니다. (세션 쿠키)")
+                continue
+
+            try:
+                expires_dt = dt.datetime.fromtimestamp(float(expires_at), tz=dt.timezone.utc)
+            except (TypeError, ValueError, OverflowError, OSError):
+                logger.warning(f"{cookie_name} 쿠키의 만료 시각을 해석하지 못했습니다. tweet_cookies.json 을 확인해 주세요.")
+                continue
+
+            remaining_days = (expires_dt - now).total_seconds() / 86400
+            expires_str = expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+            if remaining_days <= 0:
+                logger.error(f"[쿠키 만료] {cookie_name} 쿠키가 {abs(remaining_days):.1f}일 전에 만료됐습니다. "
+                             f"(만료 시각: {expires_str}) tweet_cookies.json 을 갱신해 주세요.")
+            elif remaining_days <= COOKIE_EXPIRY_WARNING_DAYS:
+                logger.warning(f"[쿠키 만료 임박] {cookie_name} 쿠키 만료까지 {remaining_days:.1f}일 남았습니다. "
+                               f"(만료 시각: {expires_str}) tweet_cookies.json 을 갱신해 주세요.")
+            else:
+                logger.info(f"{cookie_name} 쿠키 만료까지 {remaining_days:.1f}일 남았습니다. (만료 시각: {expires_str})")
+
+    def _current_url(self) -> str:
+        """
+        로그용 현재 URL 을 반환합니다. 읽을 수 없으면 '(확인 불가)' 를 반환합니다.
+        """
+        try:
+            return self.driver.current_url
+        except Exception:
+            return "(확인 불가)"
+
+    def is_logged_in(self) -> bool:
+        """
+        https://x.com/home 으로 이동해 로그인 상태인지 확인합니다.
+        로그인 상태에서만 보이는 화면 요소(LOGGED_IN_ELEMENT_XPATH) 중 하나가 나타나고,
+        현재 URL 이 로그인 화면(LOGIN_PAGE_PATHS)이 아니면 로그인된 것으로 판정합니다.
+        :return: 로그인 상태이면 True, 아니면 False
+        """
+        logger.info("로그인 상태를 확인합니다... (https://x.com/home)")
+        self.driver.get("https://x.com/home")
+
+        try:
+            self.wait.until(EC.presence_of_element_located((By.XPATH, LOGGED_IN_ELEMENT_XPATH)))
+        except TimeoutException:
+            logger.error("[쿠키 로그인 실패] 로그인 상태를 확인하지 못했습니다(로그인 상태에서만 보이는 화면 요소를 찾지 못함). "
+                         "쿠키가 만료됐을 수 있습니다. tweet_cookies.json 을 갱신해 주세요. "
+                         f"(현재 URL: {self._current_url()})")
+            return False
+
+        current_url = self._current_url()
+        if is_login_page_url(current_url):
+            logger.error("[쿠키 로그인 실패] 로그인 화면으로 이동됐습니다. "
+                         "쿠키가 만료됐을 수 있습니다. tweet_cookies.json 을 갱신해 주세요. "
+                         f"(현재 URL: {current_url})")
+            return False
+
+        logger.info(f"로그인 상태 확인 성공 (현재 URL: {current_url})")
+        return True
+
+    def save_login_error_page(self):
+        """
+        로그인 확인에 실패했을 때의 화면 소스를 data/login_error_page_<HHMMSS>.html (UTC 기준) 로 저장합니다.
+        저장에 실패해도 예외를 올리지 않고 경고만 남깁니다.
+        :return: 저장한 파일 경로, 실패하면 None
+        """
+        try:
+            local_data_dir = f"{pjt_home_path}/data"
+            os.makedirs(local_data_dir, exist_ok=True)
+            hhmmss = dt.datetime.now(dt.timezone.utc).strftime("%H%M%S")
+            error_page_filename = os.path.join(local_data_dir, f"login_error_page_{hhmmss}.html")
+            with open(error_page_filename, "w", encoding="utf-8") as f:
+                f.write(self.driver.page_source)
+        except Exception as e:
+            logger.warning(f"로그인 실패 화면 소스 저장 중 오류 발생: {e}", exc_info=True)
+            return None
+
+        self.login_error_page_path = error_page_filename
+        logger.error(f"현재 페이지 소스를 '{error_page_filename}' 파일로 저장했습니다. 파일을 열어 문제를 확인하세요.")
+        return error_page_filename
+
+    def upload_login_error_page_to_gcs(self, base_ymd: str):
+        """
+        save_login_error_page() 로 저장한 화면 소스 파일을 GCS 에 업로드합니다.
+        저장한 파일이 없으면 아무것도 하지 않고, 업로드에 실패해도 경고만 남깁니다.
+        """
+        if not self.login_error_page_path:
+            return
+
+        try:
+            ret = gcs_upload_json.upload_local_file_to_gcs(self.login_error_page_path, date_str=base_ymd)
+            if ret != 0:
+                logger.warning(f"로그인 실패 화면 소스 업로드 실패 (반환값: {ret}): {self.login_error_page_path}")
+        except Exception as e:
+            logger.warning(f"로그인 실패 화면 소스 업로드 중 오류 발생: {e}", exc_info=True)
+
+    def login_with_cookies(self) -> bool:
+        """
+        쿠키 파일(tweet_cookies.json)의 쿠키를 브라우저에 적용해 X(트위터)에 로그인하고 로그인 상태를 확인합니다.
+        - 쿠키 파일이 없거나 형식이 잘못됐으면 ENFORCE_LOGIN_CHECK 값과 무관하게 False 를 반환합니다.
+        - 로그인 확인에 실패하면 화면 소스를 data/ 아래에 저장하고,
+          ENFORCE_LOGIN_CHECK 가 True(강제 모드)이면 False, False(관찰 모드)이면 True 를 반환합니다.
+        :return: 수집을 계속해도 되면 True, 중단해야 하면 False
+        """
+        self.login_error_page_path = None
+
+        cookies = self.load_cookies()
+        if cookies is None:
+            return False
+        self.check_cookie_expiry(cookies)
+
         try:
             logger.info("X.com으로 이동합니다.")
             self.driver.get("https://x.com")
             time.sleep(3)
 
-            with open(f"{pjt_home_path}/tweet_cookies.json", "r") as file:
-                cookies = json.load(file)
-
             for cookie in cookies:
-                # logger.info(cookie)
-
                 if 'sameSite' in cookie:
                     if cookie['sameSite'] not in ['Strict', 'Lax', 'None']:
                         del cookie['sameSite']
@@ -242,13 +427,24 @@ class TweetScraper:
 
             self.driver.refresh()
             logger.info("페이지를 새로고침하여 로그인 상태를 확인합니다.")
-            self.driver.get("https://x.com/home")
+            logged_in = self.is_logged_in()
             time.sleep(random.uniform(3.5, 5.3))
 
         except Exception as e:
-            logger.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
+            logger.error(f"[쿠키 로그인 실패] 쿠키 로그인 중 예상치 못한 오류 발생: {e}", exc_info=True)
             return False
 
+        if logged_in:
+            logger.info("쿠키 로그인 성공!")
+            return True
+
+        self.save_login_error_page()
+
+        if ENFORCE_LOGIN_CHECK:
+            logger.error("ENFORCE_LOGIN_CHECK=True(강제 모드)이므로 로그인 확인 실패로 스크립트를 중단합니다.")
+            return False
+
+        logger.warning("ENFORCE_LOGIN_CHECK=False(관찰 모드)이므로 로그인 확인 실패를 기록만 하고 수집을 계속합니다.")
         return True
 
     def parse_tweet_datetime(self, datetime_str: str) -> dt.datetime:
@@ -271,9 +467,10 @@ class TweetScraper:
             # (start_date/end_date 가 aware 이므로 tz 없는 datetime.min 은 비교 시 TypeError 발생)
             return dt.datetime.min.replace(tzinfo=dt.timezone.utc)
 
-    def scrape_user_post(self, target_username: str):
+    def scrape_user_post(self, target_username: str) -> int:
         """
         특정 사용자의 프로필 페이지로 이동하여 게시글을 수집하고 파일로 저장합니다.
+        :return: 수집한 게시글 수 (0 이상)
         """
 
         # --- 프로필 페이지로 이동 ---
@@ -417,7 +614,9 @@ class TweetScraper:
                 logger.warning(f"-> '{output_filename}' 파일 저장 중 오류 발생: {e}", exc_info=True)
         else:
             logger.warning(f"[{target_username}] 님의 게시글을 수집하지 못했습니다.")
-            
+
+        return len(posts_list)
+
     def upload_posts_json_to_gcs(self, target_username: str, base_ymd: str):
         local_data_dir = f'{pjt_home_path}/data'
         filename = f"{target_username}_posts.json"
@@ -432,6 +631,96 @@ class TweetScraper:
             
         except Exception as e:            
             logger.error(f"{filename} 업로드 중 오류 발생: {e}", exc_info=True)
+
+    def scrape_target_users(self, target_usernames: list, base_ymd: str, posts_json_upload: bool = False) -> int:
+        """
+        사용자 목록의 게시글을 차례로 수집합니다.
+        - 한 사용자의 수집에서 예외가 나면 ERROR 로그를 남기고 그 사용자만 건너뜁니다(GCS 업로드도 하지 않음).
+        - 연속으로 MAX_CONSECUTIVE_SCRAPE_FAILURES 명이 실패하면 로그인 상태를 재확인한 뒤 예외를 올려 중단합니다.
+        - 대상이 1명 이상인데 수집에 성공한 사용자가 없으면(전원 예외로 실패) 로그인 상태를 재확인한 뒤 예외를 올려 실패로 처리합니다.
+        - 대상이 2명 이상인데 수집된 게시글 합계가 0건이면 로그인 상태를 재확인한 뒤 예외를 올려 실패로 처리합니다.
+          (전원 실패와 동시에 해당하면 전원 실패로 처리합니다)
+        - 게시글 0건은 수집 실패로 보지 않습니다.
+        :param list target_usernames: 수집 대상 트위터 사용자 아이디 목록
+        :param str base_ymd: GCS 업로드 기준 일자 (yyyymmdd)
+        :param bool posts_json_upload: posts.json 파일 GCS 업로드 여부
+        :return: 수집한 게시글 합계
+        """
+        succeeded_users = []
+        failed_users = []
+        total_posts = 0
+        consecutive_failures = 0
+
+        for user in target_usernames:
+            try:
+                post_count = self.scrape_user_post(user)
+            except Exception as e:
+                failed_users.append(user)
+                consecutive_failures += 1
+                logger.error(f"[{user}] 님의 게시글 수집 중 오류가 발생해 건너뜁니다. "
+                             f"(연속 실패 {consecutive_failures}/{MAX_CONSECUTIVE_SCRAPE_FAILURES}): {e}", exc_info=True)
+
+                if consecutive_failures >= MAX_CONSECUTIVE_SCRAPE_FAILURES:
+                    self._log_scrape_summary(target_usernames, succeeded_users, failed_users, total_posts)
+                    self._abort_scraping("[수집 연속 실패]", f"연속 {consecutive_failures}명의 게시글 수집이 실패했습니다")
+                continue
+
+            consecutive_failures = 0
+            succeeded_users.append(user)
+            total_posts += post_count
+            if posts_json_upload:
+                self.upload_posts_json_to_gcs(user, base_ymd)
+
+        self._log_scrape_summary(target_usernames, succeeded_users, failed_users, total_posts)
+
+        # 전원 실패를 먼저 판정하고, 해당하지 않을 때만 게시글 합계 0건을 판정 (_abort_scraping 은 한 번만 호출)
+        if target_usernames and not succeeded_users:
+            self._abort_scraping("[수집 전원 실패]", f"대상 {len(target_usernames)}명 전원의 게시글 수집이 실패했습니다")
+        elif len(target_usernames) >= 2 and total_posts == 0:
+            self._abort_scraping("[수집 게시글 0건]", f"대상 {len(target_usernames)}명에서 수집된 게시글이 0건입니다")
+
+        return total_posts
+
+    def _log_scrape_summary(self, target_usernames: list, succeeded_users: list, failed_users: list, total_posts: int):
+        """
+        사용자 목록 수집 결과(성공/실패 사용자 수, 실패한 사용자, 게시글 합계)를 한 줄로 로그에 남깁니다.
+        """
+        not_attempted = len(target_usernames) - len(succeeded_users) - len(failed_users)
+        msg = (f"수집 결과: 대상 {len(target_usernames)}명, 성공 {len(succeeded_users)}명, "
+               f"실패 {len(failed_users)}명 (실패한 사용자: {', '.join(failed_users) if failed_users else '없음'}), "
+               f"게시글 합계 {total_posts}건")
+        if not_attempted > 0:
+            msg += f", 중단으로 미수집 {not_attempted}명"
+
+        if failed_users:
+            logger.warning(msg)
+        else:
+            logger.info(msg)
+
+    def _abort_scraping(self, tag: str, reason: str):
+        """
+        로그인 상태를 재확인해 원인에 맞는 ERROR 로그를 남긴 뒤 예외를 올려 수집을 중단합니다.
+        (ENFORCE_LOGIN_CHECK 값과 무관하게 중단하며, 재확인 자체가 실패해도 중단합니다)
+        :param str tag: 로그인은 정상일 때 쓸 로그 머리말 (예: [수집 연속 실패])
+        :param str reason: 중단 사유
+        """
+        try:
+            logged_in = self.is_logged_in()
+        except Exception as e:
+            logger.error(f"로그인 상태 재확인 중 오류 발생: {e}", exc_info=True)
+            logged_in = None
+
+        if logged_in is False:
+            msg = (f"[쿠키 로그인 실패] {reason}. 로그인 상태를 재확인한 결과 로그인이 풀려 있어 수집을 중단합니다. "
+                   "쿠키가 만료됐을 수 있습니다. tweet_cookies.json 을 갱신해 주세요.")
+        elif logged_in:
+            msg = (f"{tag} {reason}. 로그인 상태는 정상이지만 수집을 중단합니다. "
+                   "X 화면 구조 변경이나 네트워크 문제를 확인해 주세요.")
+        else:
+            msg = f"{tag} {reason}. 로그인 상태를 재확인하지 못했지만 수집을 중단합니다."
+
+        logger.error(msg)
+        raise Exception(msg)
 
 
 def main(base_ymd: str,
@@ -487,21 +776,24 @@ def main(base_ymd: str,
         tweet_scraper.set_target_date_range(start_date, end_date)
         tweet_scraper.set_webdriver()
 
-        if not tweet_scraper.login_to_tweeter():
+        login_ok = tweet_scraper.login_with_cookies()
+        # 로그인 확인 실패 시 저장한 화면 소스가 있으면 GCS 에도 올림 (업로드 실패는 경고만 남김)
+        if posts_json_upload:
+            tweet_scraper.upload_login_error_page_to_gcs(base_ymd)
+        if not login_ok:
             raise Exception("로그인에 실패하여 스크립트를 중단합니다.")
 
         # --- 지정된 사용자가 없으면 모든 사용자에 대해 스크래핑 실행 ---
         if tweet_username:
+            # 단일 사용자 모드: 수집 중 예외가 나면 바로 실패 처리 (0건은 실패로 보지 않음)
             user = tweet_username
             tweet_scraper.scrape_user_post(user)
             if posts_json_upload:
                     tweet_scraper.upload_posts_json_to_gcs(user, base_ymd)
 
         else:
-            for user in tweet_usernames:
-                tweet_scraper.scrape_user_post(user)
-                if posts_json_upload:
-                    tweet_scraper.upload_posts_json_to_gcs(user, base_ymd)
+            # 사용자 목록 모드: 실패한 사용자는 건너뛰고, 연속 실패·전체 0건이면 예외로 중단
+            tweet_scraper.scrape_target_users(tweet_usernames, base_ymd, posts_json_upload)
 
         # 모든 작업이 끝나면 브라우저 종료
         if tweet_scraper.driver: tweet_scraper.driver.quit()

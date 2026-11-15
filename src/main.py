@@ -125,19 +125,34 @@ def run_news_batch():
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail.main(pwd)
     
-def download_tweet_cookies():
-    """X(트위터) 로그인에 사용할 쿠키 파일을 GCS 에서 프로젝트 루트로 내려받습니다."""
-    gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
-                                            bucket_name='gcs-private-pjt-data',
-                                            gcs_base_path='config',
-                                            date_str='20000101',
-                                            local_file_path=pjt_home_path)
+def download_tweet_cookies() -> bool:
+    """
+    X(트위터) 로그인에 사용할 쿠키 파일을 GCS 에서 프로젝트 루트로 내려받습니다.
+    :return: 성공하면 True, 실패하면(반환값이 0 이 아니거나 예외 발생) False
+    """
+    try:
+        ret = gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
+                                                      bucket_name='gcs-private-pjt-data',
+                                                      gcs_base_path='config',
+                                                      date_str='20000101',
+                                                      local_file_path=pjt_home_path)
+    except Exception as e:
+        logger.error(f"tweet_cookies.json 다운로드 중 오류 발생: {e}", exc_info=True)
+        return False
+
+    if ret != 0:
+        logger.error(f"tweet_cookies.json 다운로드 실패 (반환값: {ret}, 1: GCS 에 파일 없음, 2: 버킷 접근 오류)")
+        return False
+
+    return True
 
 def run_tweet_batch():
     base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
 
-    download_tweet_cookies()
-    
+    if not download_tweet_cookies():
+        logger.error("[쿠키 파일 오류] GCS 에서 tweet_cookies.json 을 내려받지 못해 배치를 중단합니다.")
+        return
+
     tweet_scrapper_post.main(base_ymd, True)
     tweet_summarizer.main(base_ymd)
 
@@ -150,7 +165,9 @@ def run_tweet_batch():
 def run_tweet_2nd_batch():
     base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
 
-    download_tweet_cookies()
+    if not download_tweet_cookies():
+        logger.error("[쿠키 파일 오류] GCS 에서 tweet_cookies.json 을 내려받지 못해 배치를 중단합니다.")
+        return
 
     tweet_scrapper_post.main(base_ymd, True, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
     tweet_summarizer.main(base_ymd, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
@@ -180,8 +197,10 @@ def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
     if not base_ymd:
         base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
         
-    download_tweet_cookies()
-    
+    if not download_tweet_cookies():
+        logger.error("[쿠키 파일 오류] GCS 에서 tweet_cookies.json 을 내려받지 못해 배치를 중단합니다.")
+        return
+
     tweet_scrapper_post.main(base_ymd, True, tweet_username)
     
 def run_tweet_daily_dup_batch(base_ymd=None, mode='default'):
