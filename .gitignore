@@ -16,3 +16,7 @@ tweet_cookies.json
 
 # debug artifacts
 login_error_page.html
+
+# claude code
+.claude
+CLAUDE.md
