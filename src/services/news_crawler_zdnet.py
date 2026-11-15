@@ -27,6 +27,10 @@ logger.addHandler(stream_log)
 
 kst_timezone = pytz.timezone('Asia/Seoul')
 
+# 날짜 파싱 실패 시 반환하는 값. 충분히 오래된 날짜라 수집 기간 필터에서 제외된다.
+# (dt.datetime.min 은 kst_timezone.localize() 에서 OverflowError 를 일으켜 사용할 수 없음)
+PARSE_FAILED_DATETIME = dt.datetime(1970, 1, 1)
+
 class NewsCrawler_ZDNet:
     """
     지정된 뉴스 웹사이트에서 기사를 크롤링하는 클래스.
@@ -75,7 +79,7 @@ class NewsCrawler_ZDNet:
             return dt.datetime.strptime(datetime_str, "%Y.%m.%d %p %I:%M")
         except ValueError as e:
             logger.error(f"Failed to parse date string '{datetime_str}': {e}")
-            return dt.datetime.min  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
+            return PARSE_FAILED_DATETIME  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
         
     def _parse_date_from_link(self, article_link: str):
         # 정규 표현식을 사용하여 숫자 부분 추출
@@ -87,11 +91,14 @@ class NewsCrawler_ZDNet:
             # datetime 객체로 파싱
             # %Y: 년도 (4자리), %m: 월 (2자리), %d: 일 (2자리)
             # %H: 시 (24시간 형식), %M: 분 (2자리), %S: 초 (2자리)
-            datetime_object = dt.datetime.strptime(datetime_str, '%Y%m%d%H%M%S')
-            return datetime_object
+            try:
+                return dt.datetime.strptime(datetime_str, '%Y%m%d%H%M%S')
+            except ValueError as e:
+                logger.error(f"Failed to parse article_link: '{article_link}': {e}")
+                return PARSE_FAILED_DATETIME
         else:
             logger.error(f"Failed to parse article_link: '{article_link}' ....")
-            return dt.datetime.min  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
+            return PARSE_FAILED_DATETIME  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
 
     def fetch_articles(self) -> List[Dict[str, str]]:
         """
@@ -103,7 +110,7 @@ class NewsCrawler_ZDNet:
         str_start_date = self.start_date.strftime('%Y-%m-%d')
         str_end_date = self.end_date.strftime('%Y-%m-%d')
         
-        logger.info(f"Fetching articles from {self.base_url}published from {str_start_date} to {str_end_date}")
+        logger.info(f"Fetching articles from {self.base_url} published from {str_start_date} to {str_end_date}")
 
         response = requests.get(self.base_url, headers=self.headers, timeout=10)
         response.raise_for_status()  # HTTP 오류가 발생하면 예외 발생
@@ -115,7 +122,7 @@ class NewsCrawler_ZDNet:
         news_posts = soup.find_all('div', class_='newsPost')
 
         if (not news_posts) and (not sub_news):
-            logger.warning(f"Not Found both news_posts and sub_news")
+            logger.warning("Not Found both news_posts and sub_news")
             logger.warning(f"No news items found on {self.base_url}")
             return news_list
 
@@ -158,39 +165,9 @@ class NewsCrawler_ZDNet:
             else:
                 logger.debug(f"Skipping old article: {title} ({published_datetime})")
 
-        # sub_news 클래스에서 검색된 뉴스 기사 목록
-        # To-Do: sub_news 뉴스 목록 데이터 있는 경우 데이터 처리 로직 추가 필요
-        for news_item in sub_news:
-            article_link = news_item.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그            
-            title = news_item.get_text(strip=True)
-            article_datetime = self._parse_date_from_link(article_link)
-
-            logger.info("=========================")
-            logger.info(f'title: {title}')
-            logger.info(f'link: {article_link}')
-            logger.info(f'article_datetime: {article_datetime}')
-            
-            # 상대 경로 URL을 절대 경로로 변환
-            # base_url이 'https://zdnet.co.kr/news/?lstcode=0050' 이면
-            # 'https://zdnet.co.kr' 부분만 추출하여 합칩니다.
-            base_domain = self.base_url.split('/news')[0]
-            article_url = base_domain + article_link
-            
-            # Check if the article is within from start_date to end_date
-            published_datetime = kst_timezone.localize(article_datetime)
-            if published_datetime >= self.start_date and published_datetime <= self.end_date:
-                news_list.append({
-                    "title": title,
-                    "url": article_url,
-                    "published_date": published_datetime.strftime('%Y-%m-%d'),
-                    "content": ""  # 내용은 fetch_article_content에서 채움
-                })
-            else:
-                logger.debug(f"Skipping old article: {title} ({published_datetime})")
-        
-        # top_news 클래스에서 검색된 뉴스 기사 목록
-        # To-Do: top_news 뉴스 목록 데이터 있는 경우 데이터 처리 로직 추가 필요
-        for news_item in top_news:
+        # sub_news, top_news 클래스에서 검색된 뉴스 기사 목록 (두 영역은 구조와 처리 방식이 동일)
+        # To-Do: sub_news, top_news 뉴스 목록 데이터 있는 경우 데이터 처리 로직 추가 필요
+        for news_item in list(sub_news) + list(top_news):
             article_link = news_item.select_one('a').get('href')  # 기사 제목과 URL을 포함하는 <a> 태그            
             title = news_item.get_text(strip=True)
             article_datetime = self._parse_date_from_link(article_link)
@@ -288,7 +265,7 @@ class NewsCrawler_ZDNet:
             return content.strip()
         else:
             logger.warning(
-                f"Could not find article content with selector '#article_view_content' for {article_url}")
+                f"Could not find article content with selector '#articleBody' or 'div.sub_view_cont' for {article_url}")
             return "기사 내용을 찾을 수 없습니다."
         
 def main(target_section: str, base_ymd: str):
@@ -350,7 +327,7 @@ def main(target_section: str, base_ymd: str):
         logger.info(f"Articles saved to zdnet_{target_section_en}_articles.json")
         
         
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

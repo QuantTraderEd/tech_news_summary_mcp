@@ -1,8 +1,6 @@
 import os
-import sys
 import site
 import logging
-import traceback
 import pytest
 
 src_path = os.path.dirname(__file__)
@@ -170,7 +168,7 @@ def test_file_upload_failure_raises_exception(mock_gcs, mock_os_path, caplog_set
 
     # 로그 검증
     assert f"start upload '{local_file}' file to 'gs://gcs-private-pjt-data/news_data/20000101/'..." in caplog_setup.text
-    assert f"'failed_upload_file.json' upload fail!!! => Network error during upload" in caplog_setup.text
+    assert "'failed_upload_file.json' upload fail!!! => Network error during upload" in caplog_setup.text
 
 
 def test_default_date_string(mock_gcs, mock_os_path, caplog_setup):
@@ -235,9 +233,6 @@ def test_main_uploads_matching_files(mock_main_dependencies, caplog_setup, mocke
     mock_listdir.assert_called_once_with(local_data_dir)
 
     # upload_local_file_to_gcs 함수가 올바른 파일에 대해 호출되었는지 확인합니다.
-    # main 함수는 target_news_site를 기반으로 gcs_base를 동적으로 생성하므로,
-    # 테스트에서 이 값을 명시적으로 확인해야 합니다.
-    expected_gcs_base = f"news_data"
     expected_calls = [
         mocker.call(os.path.join(local_data_dir, 'zdnet_news.json'), date_str=target_ymd),
         mocker.call(os.path.join(local_data_dir, 'zdnet_archive.json'), date_str=target_ymd)

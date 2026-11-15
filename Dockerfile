@@ -41,7 +41,7 @@ RUN groupadd --system app && useradd --system -g app -s /bin/bash -m app
 # 이 명령은 'app' 사용자로 전환하기 전에 root 권한으로 실행되어야 합니다.
 RUN chown -R app:app /app
 
-# start_batch.sh 스크립트에 실행 권한을 부여합니다.
+# 실행 스크립트에 실행 권한을 부여합니다.
 # 이 명령은 아직 root 사용자로 실행되므로 권한 문제가 없습니다.
 RUN chmod +x ./scripts/start_batch.sh
 RUN chmod +x ./scripts/gunicorn_start.sh
@@ -60,7 +60,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8080
 
-# 컨테이너가 시작될 때 run_all_batch.sh 스크립트를 실행합니다.
+# 컨테이너가 시작될 때 gunicorn_start.sh 스크립트(config.json 생성 + FastAPI 서버 실행)를 실행합니다.
 # exec 형식은 시그널 처리를 올바르게 합니다.
-# CMD ["/app/scripts/run_all_batch.sh"]
 CMD ["/app/scripts/gunicorn_start.sh"]

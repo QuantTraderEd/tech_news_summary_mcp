@@ -7,8 +7,6 @@ import time
 import json
 import random
 
-import undetected_chromedriver as uc
-
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -39,7 +37,6 @@ stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
 
-# options = uc.ChromeOptions()
 options = webdriver.ChromeOptions()
 # options.add_argument(f"--user-data-dir={PROFILE_PATH}") # user-data-dir 옵션으로 프로필 경로를 지정
 # options.add_argument("--headless=new")  # 브라우저를 숨기기
@@ -58,7 +55,6 @@ options.add_experimental_option('useAutomationExtension', False)
 # 드라이버 실행
 service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service, options=options)
-# driver = uc.Chrome(options=options, version_main=138)
 wait = WebDriverWait(driver, 15)
 
 logger.info(f"chromedirver path => {service.path}")

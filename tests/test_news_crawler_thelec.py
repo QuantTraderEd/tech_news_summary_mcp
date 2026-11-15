@@ -1,8 +1,5 @@
 import os
-import sys
 import site
-import json
-import re
 import pytest
 import datetime as dt
 
@@ -17,7 +14,7 @@ pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
-from src.services.news_crawler_thelec import ThelecNewsCrawler, main as thelec_main
+from src.services.news_crawler_thelec import ThelecNewsCrawler, PARSE_FAILED_DATETIME, main as thelec_main
 
 # Constants
 BASE_URL = "https://www.thelec.kr/news/articleList.html?sc_section_code=S1N2"
@@ -51,7 +48,7 @@ def test_parse_date(crawler):
     """Test parsing of TheLec's specific date formats."""
     assert crawler._parse_date("2025-05-29 08:52") == dt.datetime(2025, 5, 29, 8, 52)
     assert crawler._parse_date("2025-05-30") == dt.datetime(2025, 5, 30)
-    assert crawler._parse_date("invalid-date") == dt.datetime.min
+    assert crawler._parse_date("invalid-date") == PARSE_FAILED_DATETIME
 
 def test_is_target_section(crawler):
     """Test the logic for identifying if an article belongs to the target section."""

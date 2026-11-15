@@ -7,8 +7,9 @@ import json
 import time
 import datetime as dt
 
-import pytz
 import google.generativeai as genai
+from google.api_core import exceptions as google_exceptions
+from google.rpc import error_details_pb2
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
@@ -27,8 +28,6 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
-
-kst_timezone = pytz.timezone('Asia/Seoul')
 
 # --- 1. 설정 ---
 
@@ -67,22 +66,108 @@ model = genai.GenerativeModel('gemini-3.5-flash-lite')
 
 # --- 2. 헬퍼 함수: Gemini API 호출 ---
 
+# Gemini API 호출 시간/재시도 설정
+# Cloud Run 에서 대기가 길어지면 비용이 늘고 작업이 끝나기 전에 인스턴스가 종료될 수 있으므로,
+# call_gemini_api 한 번은 (API 응답 대기 + 재시도 대기를 모두 합쳐) 3분 안에 끝나도록 한다.
+GEMINI_CALL_TIME_LIMIT = 170.0   # 호출 한 번에 쓸 수 있는 총 시간(초). 이 시간을 넘겨서 기다리지 않는다
+GEMINI_MAX_ATTEMPTS = 4          # 최초 호출을 포함한 최대 시도 횟수
+GEMINI_RETRY_BASE_DELAY = 10.0   # 서버가 대기 시간을 알려주지 않을 때의 첫 대기 시간(초). 이후 2배씩 증가 (10, 20, 40)
+GEMINI_RETRY_MAX_DELAY = 60.0    # 한 번에 기다리는 최대 시간(초). 분당 한도가 풀리는 데 필요한 시간
+GEMINI_RETRY_DELAY_MARGIN = 1.0  # 서버가 알려준 대기 시간에 더하는 여유(초)
+GEMINI_MIN_ATTEMPT_TIME = 10.0   # 재시도한 호출이 응답을 받을 수 있도록 남겨두는 최소 시간(초)
+GEMINI_COOLDOWN = 600.0          # 재시도로도 해결되지 않았을 때 API 호출을 건너뛰는 시간(초)
+
+# 잠시 기다린 뒤 다시 시도할 오류: 429(할당량/요청 한도 초과), 503(서버 과부하)
+GEMINI_RETRYABLE_ERRORS = (google_exceptions.TooManyRequests, google_exceptions.ServiceUnavailable)
+
+# API 호출에 실패했을 때 결과 대신 반환하는 문자열
+API_ERROR_TEXT = "Error during API call."
+
+# 이 시각(time.monotonic 기준) 전까지는 API 를 호출하지 않고 바로 실패 처리한다.
+_gemini_blocked_until = 0.0
+
+def _get_server_retry_delay(exc):
+    """
+    429 응답에 포함된 서버 권장 대기 시간(google.rpc.RetryInfo)을 초 단위로 반환합니다.
+    정보가 없으면 None 을 반환합니다.
+    """
+    for detail in getattr(exc, "details", None) or []:
+        if isinstance(detail, error_details_pb2.RetryInfo):
+            delay = detail.retry_delay.seconds + detail.retry_delay.nanos / 1e9
+            if delay > 0:
+                return delay
+    return None
+
+def _plan_retry(exc, attempt: int, deadline: float):
+    """
+    재시도 여부와 대기 시간을 정합니다.
+    :return: (대기 시간(초), None) 또는 재시도하지 않을 때 (None, 포기 사유)
+    """
+    if attempt >= GEMINI_MAX_ATTEMPTS:
+        return None, f"{GEMINI_MAX_ATTEMPTS}회 시도 후에도 해결되지 않음"
+
+    server_delay = _get_server_retry_delay(exc)
+    if server_delay is None:
+        delay = min(GEMINI_RETRY_BASE_DELAY * (2 ** (attempt - 1)), GEMINI_RETRY_MAX_DELAY)
+    elif server_delay > GEMINI_RETRY_MAX_DELAY:
+        return None, f"서버 권장 대기 시간({server_delay:.0f}초)이 너무 김"
+    else:
+        delay = server_delay + GEMINI_RETRY_DELAY_MARGIN
+
+    if time.monotonic() + delay + GEMINI_MIN_ATTEMPT_TIME > deadline:
+        return None, f"호출당 시간 한도({GEMINI_CALL_TIME_LIMIT:.0f}초) 안에 재시도할 수 없음"
+
+    return delay, None
+
+def _block_gemini_calls(reason: str):
+    """Gemini API 를 당분간 쓸 수 없는 것으로 보고 GEMINI_COOLDOWN 동안 호출을 건너뛰도록 표시합니다."""
+    global _gemini_blocked_until
+    _gemini_blocked_until = time.monotonic() + GEMINI_COOLDOWN
+    logger.error(f"{reason} -> 이후 {GEMINI_COOLDOWN:.0f}초 동안 Gemini API 호출을 건너뜁니다.")
+
 def call_gemini_api(prompt_text):
     """
-    주어진 프롬프트로 Gemini API를 호출하고 결과를 반환합니다.
-    API 호출 제한(분당 요청 수)을 피하기 위해 재시도 로직을 포함합니다.
+    주어진 프롬프트로 Gemini API를 호출하고 결과를 반환합니다. 실패하면 API_ERROR_TEXT 를 반환합니다.
+
+    호출 한 번은 GEMINI_CALL_TIME_LIMIT(170초) 안에 끝납니다.
+      - 429(할당량/요청 한도 초과), 503(서버 과부하)은 기다렸다가 최대 GEMINI_MAX_ATTEMPTS 회까지 시도합니다.
+        서버가 대기 시간(RetryInfo)을 알려주면 그 시간만큼, 아니면 10초부터 2배씩 늘려가며 기다립니다.
+      - 시간 한도 안에 재시도할 수 없거나, 서버 권장 대기 시간이 GEMINI_RETRY_MAX_DELAY 보다 길거나
+        (일일 할당량 소진 등), 모든 시도가 실패하면 더 기다리지 않고 포기합니다.
+      - 포기한 뒤 GEMINI_COOLDOWN 동안의 호출은 API 를 부르지 않고 바로 실패 처리해,
+        남은 게시물마다 대기 시간이 반복되지 않게 합니다.
+
+    SDK 자체 재시도(503 을 최대 600초까지 재시도)와 기본 응답 대기 시간(600초)은 위 한도를 넘기므로
+    request_options 로 끄고/줄여서, 대기와 재시도를 모두 이 함수 안에서만 관리합니다.
     """
-    try:
-        response = model.generate_content(prompt_text)
-        return response.text
-    except Exception as e:
-        if "rate limit" in str(e).lower():
-            logger.warning("API Rate limit exceeded. Waiting for 20 seconds before retrying...")
-            time.sleep(20)
-            return call_gemini_api(prompt_text)
-        else:
+    if time.monotonic() < _gemini_blocked_until:
+        logger.warning("Gemini API 를 당분간 쓸 수 없는 상태라 호출을 건너뜁니다.")
+        return API_ERROR_TEXT
+
+    deadline = time.monotonic() + GEMINI_CALL_TIME_LIMIT
+
+    for attempt in range(1, GEMINI_MAX_ATTEMPTS + 1):
+        try:
+            response = model.generate_content(
+                prompt_text,
+                request_options={"timeout": deadline - time.monotonic(), "retry": None},
+            )
+            return response.text
+        except GEMINI_RETRYABLE_ERRORS as e:
+            delay, give_up_reason = _plan_retry(e, attempt, deadline)
+            if give_up_reason:
+                _block_gemini_calls(f"Gemini API 오류로 포기합니다 ({give_up_reason}): {e}")
+                return API_ERROR_TEXT
+
+            logger.warning(f"Gemini API {e.code}. {delay:.1f}초 대기 후 재시도합니다. "
+                           f"(시도 {attempt}/{GEMINI_MAX_ATTEMPTS})")
+            time.sleep(delay)
+        except google_exceptions.DeadlineExceeded as e:
+            _block_gemini_calls(f"Gemini API 가 시간 한도 안에 응답하지 않았습니다: {e}")
+            return API_ERROR_TEXT
+        except Exception as e:
             logger.error(f"Gemini API 호출 중 예기치 않은 오류 발생: {e}", exc_info=True)
-            return "Error during API call."
+            return API_ERROR_TEXT
 
 def remove_duplicate_posts(posts_list: list) -> list:
     """
@@ -235,10 +320,15 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
             
             # (base_ymd - 1)/summarized_posts_agg.json 파일 과 (base_ymd)/summarized_posts_agg.json (업데이트하기 전) 파일 합체
             summarized_prev_posts_agg = []
-            with open(output_filename, 'r', encoding='utf-8') as f:
-                summarized_prev_posts_agg = json.load(f)
-                logger.info("loaded summarized_prev_posts_agg.json!!")
-                logger.info(f"summarized_prev_posts_agg cnt => {len(summarized_prev_posts_agg)}")
+            if ret == 0:
+                with open(output_filename, 'r', encoding='utf-8') as f:
+                    summarized_prev_posts_agg = json.load(f)
+                    logger.info("loaded summarized_prev_posts_agg.json!!")
+                    logger.info(f"summarized_prev_posts_agg cnt => {len(summarized_prev_posts_agg)}")
+            else:
+                # 전일자 파일을 받지 못한 경우 로컬 파일은 방금 저장한 당일자 agg 이므로 읽으면 안 된다.
+                # (읽으면 당일 게시물 전체가 전일자 게시물로 취급되어 모두 [중복] 태그가 붙음)
+                logger.warning(f"{base_ymd_prev}/summarized_posts_agg.json 이 없어 전일자 중복 체크를 건너뜁니다.")
                 
             summarized_union_posts_agg = summarized_prev_posts_agg # + summarized_old_posts_agg  # 우선 prev_post_agg 파일만 적용
             
@@ -270,7 +360,7 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
             logger.info("="*50)
             
         
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)
@@ -284,8 +374,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "base_ymd",
         type=str,
-        default=dt.datetime.now(kst_timezone).strftime("%Y%m%d"), # 기본값은 현재 날짜
-        help="뉴스 기준 일자 (yyyymmdd), 미입력 시 현재 날짜가 기본값",
+        default=dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d"),  # 기본값은 현재 날짜 (UTC 기준)
+        help="post 수집 기준 일자 (yyyymmdd), 미입력 시 현재 날짜(UTC)가 기본값",
         nargs='?'
     )
     

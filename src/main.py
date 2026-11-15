@@ -2,20 +2,15 @@ import os
 import sys
 import site
 import logging
-import time
 import json
-import asyncio
 import datetime as dt
 
 import pytz
 import pandas as pd
 
-from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response
 from fastapi import BackgroundTasks
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-# from typing import List
-from google.protobuf import timestamp_pb2, duration_pb2
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir)
@@ -53,11 +48,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# GCP 프로젝트 정보 및 Cloud Tasks 큐 정보
-PROJECT_ID = os.environ.get('GCP_PROJECT_ID', 'theta-window-364015')
-LOCATION_ID = os.environ.get('GCP_LOCATION_ID', 'asia-northeast3') # e.g., 'asia-northeast3'
-TASK_QUEUE_ID = os.environ.get('GCP_TASK_QUEUE_ID', 'my-batch-queue') # e.g., 'my-batch-queue'
-
 # Pydantic 모델을 사용하여 요청 본문 유효성 검사
 class BatchParams(BaseModel):
     batch_type: str
@@ -67,94 +57,6 @@ class BatchParams(BaseModel):
 async def health_check():
     return "Tech News Summary (FASTAPI) Good!!"
 
-@app.post("/trigger-batch", status_code=202)
-async def trigger_batch(payload: BatchParams, request: Request):
-    """
-    Cloud Scheduler로부터 호출될 트리거 엔드포인트.
-    실제 작업을 수행하는 대신 Cloud Tasks에 작업을 생성합니다.
-    """
-    if not all([PROJECT_ID, LOCATION_ID, TASK_QUEUE_ID]):
-        raise HTTPException(status_code=500, detail="Server configuration error for Cloud Tasks.")
-
-    # 워커 서비스의 URL을 가져옵니다.
-    # 일반적으로 트리거와 워커는 같은 Cloud Run 서비스에 있으므로 현재 요청의 URL을 사용합니다.
-    logger.info(f"request.base_url => {request.base_url}")
-    base_url = str(request.base_url).replace('http://', 'https://')
-    worker_url = str(base_url) + "execute-test-batch"
-
-    # Cloud Tasks 큐 경로 설정
-    parent = tasks_client.queue_path(PROJECT_ID, LOCATION_ID, TASK_QUEUE_ID)
-
-    # Cloud Tasks에 보낼 작업(Task) 생성
-    task = {
-        "http_request": {
-            "http_method": tasks_v2.HttpMethod.POST,
-            "url": worker_url,
-            "headers": {"Content-Type": "application/json"},
-            # payload를 JSON 문자열로 인코딩하여 본문에 추가
-            "body": payload.json().encode(),
-            # OIDC 토큰을 사용하여 워커 서비스 호출 인증
-            "oidc_token": {
-                # 워커를 호출할 서비스 계정. 비워두면 기본 Compute Engine 서비스 계정 사용
-                "service_account_email": "sa-pvt-pjt-cloudtasks@theta-window-364015.iam.gserviceaccount.com"
-            },
-        },
-        # 작업 실행 데드라인 설정 (최대 15분)
-        "dispatch_deadline": duration_pb2.Duration(seconds=15*60),
-    }
-
-    try:
-        # 작업 생성 요청
-        response = tasks_client.create_task(parent=parent, task=task)
-        logger.info(f"Created task: {response.name}")
-        return {"message": "Batch task successfully queued.", "task_name": response.name}
-    except Exception as e:
-        logger.error(f"Error creating task: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create task: {e}")
-
-
-@app.post("/execute-test-batch")
-async def execute_test_batch(payload: BatchParams):
-    """
-    Cloud Tasks에 의해 호출될 워커 엔드포인트.
-    실제 오래 걸리는 배치 작업을 수행합니다.
-    """
-    batch_type = payload.batch_type
-    params = payload.params
-    logger.info(f"Worker received task for batch_type: {batch_type} with params: {params}")
-
-    try:
-        if batch_type == 'daily_report':
-            run_daily_report(params)
-        elif batch_type == 'user_sync':
-            run_user_sync(params)
-        else:
-            logger.info(f"Error: Unknown batch type '{batch_type}'.")
-            # Cloud Tasks가 재시도하지 않도록 성공(2xx) 응답을 반환하는 것이 중요
-            return Response(status_code=204)
-
-        logger.info(f"Successfully finished batch: {batch_type}")
-        return Response(status_code=200) # 성공적으로 완료되면 200 OK
-    except Exception as e:
-        # 예외 발생 시, Cloud Tasks가 재시도하도록 에러(5xx) 응답을 반환
-        logger.info(f"Error during batch execution: {e}", exc_info=True)
-        raise HTTPException(status_code=503, detail=f"Batch job failed: {e}")
-
-
-def run_daily_report(params: dict):
-    """(오래 걸리는) 일일 리포트 생성 배치 작업 시뮬레이션"""
-    
-    logger.info(f"Running daily report... Params: {params}")
-    time.sleep(300) # 5분 이상 소요되는 작업 시뮬레이션
-    logger.info("Daily report generation finished.")
-
-def run_user_sync(params: dict):
-    """(오래 걸리는) 사용자 동기화 배치 작업 시뮬레이션"""
-    logger.info(f"Running user synchronization... Params: {params}")
-    time.sleep(400) # 5분 이상 소요되는 작업 시뮬레이션
-    logger.info("User synchronization finished.")
-
-    
 @app.post("/execute-batch")
 async def execute_batch(backgroundtasks: BackgroundTasks, payload: BatchParams):
     """
@@ -187,14 +89,14 @@ async def execute_batch(backgroundtasks: BackgroundTasks, payload: BatchParams):
         else:
             msg = f"Error: Unknown batch type '{batch_type}'."
             logger.warning(msg)
-            # Cloud Tasks가 재시도하지 않도록 성공(2xx) 응답을 반환하는 것이 중요
+            # 호출 측(Cloud Scheduler 등)이 재시도하지 않도록 성공(2xx) 응답을 반환하는 것이 중요
             return Response(status_code=204)
 
         logger.info(f"Successfully run batch.. batch will run background..: {batch_type}")
         return Response(status_code=200) # 성공적으로 완료되면 200 OK
     except Exception as e:
-        # 예외 발생 시, Cloud Tasks가 재시도하도록 에러(5xx) 응답을 반환
-        logger.info(f"Error during batch execution: {e}", exc_info=True)
+        # 예외 발생 시, 호출 측이 재시도하도록 에러(5xx) 응답을 반환
+        logger.error(f"Error during batch execution: {e}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Batch job failed: {e}")
         
 
@@ -223,15 +125,34 @@ def run_news_batch():
     pwd = os.environ.get('NVR_MAIL_PWD')
     send_mail.main(pwd)
     
+def download_tweet_cookies() -> bool:
+    """
+    X(트위터) 로그인에 사용할 쿠키 파일을 GCS 에서 프로젝트 루트로 내려받습니다.
+    :return: 성공하면 True, 실패하면(반환값이 0 이 아니거나 예외 발생) False
+    """
+    try:
+        ret = gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
+                                                      bucket_name='gcs-private-pjt-data',
+                                                      gcs_base_path='config',
+                                                      date_str='20000101',
+                                                      local_file_path=pjt_home_path)
+    except Exception as e:
+        logger.error(f"tweet_cookies.json 다운로드 중 오류 발생: {e}", exc_info=True)
+        return False
+
+    if ret != 0:
+        logger.error(f"tweet_cookies.json 다운로드 실패 (반환값: {ret}, 1: GCS 에 파일 없음, 2: 버킷 접근 오류)")
+        return False
+
+    return True
+
 def run_tweet_batch():
     base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
 
-    gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
-                                            bucket_name='gcs-private-pjt-data',
-                                            gcs_base_path='config',
-                                            date_str='20000101',
-                                            local_file_path=pjt_home_path)
-    
+    if not download_tweet_cookies():
+        logger.error("[쿠키 파일 오류] GCS 에서 tweet_cookies.json 을 내려받지 못해 배치를 중단합니다.")
+        return
+
     tweet_scrapper_post.main(base_ymd, True)
     tweet_summarizer.main(base_ymd)
 
@@ -244,11 +165,9 @@ def run_tweet_batch():
 def run_tweet_2nd_batch():
     base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
 
-    gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
-                                            bucket_name='gcs-private-pjt-data',
-                                            gcs_base_path='config',
-                                            date_str='20000101',
-                                            local_file_path=pjt_home_path)
+    if not download_tweet_cookies():
+        logger.error("[쿠키 파일 오류] GCS 에서 tweet_cookies.json 을 내려받지 못해 배치를 중단합니다.")
+        return
 
     tweet_scrapper_post.main(base_ymd, True, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
     tweet_summarizer.main(base_ymd, tweet_usernames= tweet_scrapper_post.TARGET_USERNAMES_2ND)
@@ -278,12 +197,10 @@ def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
     if not base_ymd:
         base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
         
-    gcs_download_json.download_gcs_to_local(file_name='tweet_cookies.json',
-                                            bucket_name='gcs-private-pjt-data',
-                                            gcs_base_path='config',
-                                            date_str='20000101',
-                                            local_file_path=pjt_home_path)
-    
+    if not download_tweet_cookies():
+        logger.error("[쿠키 파일 오류] GCS 에서 tweet_cookies.json 을 내려받지 못해 배치를 중단합니다.")
+        return
+
     tweet_scrapper_post.main(base_ymd, True, tweet_username)
     
 def run_tweet_daily_dup_batch(base_ymd=None, mode='default'):
@@ -315,7 +232,7 @@ def count_tweet_posts(tweet_usernames: list = None):
         target_users = tweet_usernames
 
     post_counts = {}
-    logger.info(f"Counting tweet posts...")
+    logger.info("Counting tweet posts...")
 
     for username in target_users:
         file_path = os.path.join(data_path, f"{username}_posts.json")

@@ -2,10 +2,7 @@ import os
 import sys
 import site
 import logging
-import traceback
-import datetime as dt
 
-import pytz
 from google.cloud import storage
 
 src_path = os.path.dirname(__file__)
@@ -20,8 +17,6 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
-
-kst_timezone = pytz.timezone('Asia/Seoul')
 
 from src.services import tweet_scrapper_post
 
@@ -75,12 +70,7 @@ def download_gcs_to_local(
 
     return 0
     
-def local_test():
-    file_name = 'rwang07_posts.json'
-    ret = download_gcs_to_local(file_name, date_str='20250711')
-    logger.info(f"ret => {ret}")
-    
-def download_gcs_posts_json_to_local(target_user_list:list = [], target_date:str = '20000101'):
+def download_gcs_posts_json_to_local(target_user_list: list = None, target_date: str = '20000101'):
     if not target_user_list:
         target_user_list = tweet_scrapper_post.TARGET_USERNAMES
 
@@ -91,5 +81,4 @@ def download_gcs_posts_json_to_local(target_user_list:list = [], target_date:str
 
 
 if __name__ == '__main__':
-    # local_test()
     download_gcs_posts_json_to_local(target_date='20250713')

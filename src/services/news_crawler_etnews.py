@@ -2,7 +2,6 @@ import os
 import sys
 import logging
 import traceback
-import re
 import json
 import time
 import random
@@ -29,6 +28,10 @@ logger.addHandler(stream_log)
 
 kst_timezone = pytz.timezone('Asia/Seoul')
 
+# 날짜 파싱 실패 시 반환하는 값. 충분히 오래된 날짜라 수집 기간 필터에서 제외된다.
+# (dt.datetime.min 은 kst_timezone.localize() 에서 OverflowError 를 일으켜 사용할 수 없음)
+PARSE_FAILED_DATETIME = dt.datetime(1970, 1, 1)
+
 class NewsCrawlerEtnews:
     """
     etnews.com의 '전자', 'SW', 'IT' 섹션에서 뉴스 기사 목록과 본문을 수집하는 크롤러 클래스.
@@ -36,13 +39,7 @@ class NewsCrawlerEtnews:
     - 제목이 '[포토]'로 시작하는 기사는 수집에서 제외합니다.
     - 각 기사의 상세 페이지에 접속하여 본문 내용을 수집합니다.
     """
-        
-    target_section_en_dict = {
-        "06": "electronics",
-        "04": "software",
-        "03": "it",
-    }
-    
+
     def __init__(self, base_url: str):
         self.base_url = base_url   
         # 랜덤 User-Agent 생성
@@ -79,13 +76,13 @@ class NewsCrawlerEtnews:
     def _parse_date(self, datetime_str: str) -> dt.datetime:
         """
         날짜 문자열을 datetime 객체로 파싱합니다.
-        ETNews 날짜 형식: YYYY.MM.DD HH:MM  (예: 2025-05-23 19:22)
+        ETNews 날짜 형식: YYYY-MM-DD HH:MM  (예: 2025-05-23 19:22)
         """
         try:
             return dt.datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
         except ValueError as e:
             logger.error(f"Failed to parse date string '{datetime_str}': {e}")
-            return dt.datetime.min  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
+            return PARSE_FAILED_DATETIME  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
 
     def _fetch_html(self, url: str):
         """
@@ -114,13 +111,18 @@ class NewsCrawlerEtnews:
             logger.info(f"Fetching articles from {self.base_url + f'&page={page_num}'} published from {self.start_date} to {self.end_date}")
         
             html = self._fetch_html(self.base_url + f'&page={page_num}')
+            if html is None:
+                # 요청 실패 시 해당 페이지만 건너뛰고, 이미 수집한 기사는 유지한다.
+                logger.warning(f"Skip page {page_num}: failed to fetch list page.")
+                continue
             soup = BeautifulSoup(html, 'html.parser')
             
             # 데스크탑 페이지 구조: 기사 목록은 'div' 태그와 'class=list_news' 안에 'ul > li' 형태로 존재        
             article_list_ul = soup.find('ul', class_='news_list')
             if not article_list_ul:
-                logger.warning("Could not find 'ul' inside the news_list container.")
-                return []
+                # 해당 페이지만 건너뛴다. (return [] 로 이전 페이지 결과까지 버리지 않도록)
+                logger.warning(f"Skip page {page_num}: could not find 'ul' inside the news_list container.")
+                continue
 
             list_items = article_list_ul.find_all('li')
 
@@ -172,8 +174,8 @@ class NewsCrawlerEtnews:
     
     def fetch_article_content(self, article_url: str) -> str:
         """
-        개별 기사 페이지의 HTML에서 본문 텍스트를 파싱합니다.
-        :param html: 기사 페이지의 HTML 콘텐츠
+        개별 기사 페이지를 가져와 본문 텍스트를 파싱합니다.
+        :param article_url: 기사 페이지 URL
         :return: 기사 본문 텍스트
         """
         logger.info(f"Fetching content for article: {article_url}")
@@ -255,7 +257,7 @@ def main(target_section: str, base_ymd: str):
             json.dump(articles, f, ensure_ascii=False, indent=2)
         logger.info(f"Articles saved to etnews_{target_section_en}_articles.json")
         
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)    

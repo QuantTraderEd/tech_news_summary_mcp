@@ -35,11 +35,8 @@ with open(f'{pjt_home_path}/config.json', 'r') as config_file:
 API_KEY = api_key
 
 if not API_KEY:
-    logger.error("Error: GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다.")
-    logger.error("API 키를 직접 코드에 입력하거나, 환경 변수로 설정해주세요.")
-    # 여기에 직접 API 키를 입력할 수도 있지만, 보안상 권장하지 않습니다.
-    # API_KEY = "YOUR_API_KEY"
-    exit()
+    logger.error("Error: config.json 파일에 'GEMINI_API_KEY'가 없거나 값이 비어있습니다.")
+    sys.exit(1)
 
 genai.configure(api_key=API_KEY)
 
@@ -117,7 +114,7 @@ def main(base_ymd: str):
         # json 파일 GCS 에 업로드
         gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_json_path,
                                                 date_str=base_ymd)
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

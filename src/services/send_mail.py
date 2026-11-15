@@ -5,11 +5,8 @@ import traceback
 import json
 import smtplib
 
-from email import encoders
 from email.header import Header
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
@@ -61,33 +58,6 @@ def mail_server_login(mail_accnt='', pwd=''):
 
     return mail_server
 
-def send_mail(mail_accnt: str, pwd: str, to_mail_list: list,
-              mail_title: str, mail_text: str):
-
-    mail_server = mail_server_login(mail_accnt, pwd)
-
-    # 제목, 본문 작성
-    msg = MIMEMultipart()
-    msg['From'] = mail_accnt
-    msg['To'] = ', '.join(to_mail_list)
-    msg['Subject'] = mail_title
-    msg.attach(MIMEText(mail_text, 'plain'))
-
-    # 파일첨부 (파일 미첨부시 생략가능)
-    # attachment = open('./data/%s' % target_filename, 'rb')
-    # part = MIMEBase('application', 'octet-stream')
-    # part.set_payload(attachment.read())
-    # encoders.encode_base64(part)
-    # filename = os.path.basename('./data/%s' % target_filename)
-    # part.add_header('Content-Disposition', "attachment; filename= " + filename)
-    # msg.attach(part)
-
-    # 메일 전송
-    mail_server.sendmail(mail_accnt, to_mail_list, msg.as_string())
-    logger.info(f"send mail: {mail_title}")
-
-    mail_server.quit()
-
 def send_email_with_news(sender_email: str, sender_password: str, receiver_email_list: list, news_data: list):
     """
     뉴스 데이터를 포함한 이메일을 발송합니다.
@@ -105,19 +75,19 @@ def send_email_with_news(sender_email: str, sender_password: str, receiver_email
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body {{ font-family: 'Inter', sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4; }}
-            .container {{ max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }}
-            h1 {{ color: #0056b3; text-align: center; margin-bottom: 20px; }}
-            .news-item {{ border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; }}
-            .news-item:last-child {{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }}
-            h2 {{ color: #007bff; font-size: 1.2em; margin-top: 0; margin-bottom: 5px; }}
-            p {{ margin-bottom: 5px; }}
-            .date {{ font-size: 0.9em; color: #666; }}
-            .url {{ font-size: 0.9em; color: #007bff; text-decoration: none; display: block; margin-top: 5px; }}
-            .summary {{ font-size: 1em; color: #555; }}
-            ul {{ list-style: none; padding: 0; margin: 0; }}
-            li {{ margin-bottom: 5px; }}
-            .footer {{ text-align: center; font-size: 0.8em; color: #999; margin-top: 20px; }}
+            body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f4f4; }
+            .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+            h1 { color: #0056b3; text-align: center; margin-bottom: 20px; }
+            .news-item { border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; }
+            .news-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+            h2 { color: #007bff; font-size: 1.2em; margin-top: 0; margin-bottom: 5px; }
+            p { margin-bottom: 5px; }
+            .date { font-size: 0.9em; color: #666; }
+            .url { font-size: 0.9em; color: #007bff; text-decoration: none; display: block; margin-top: 5px; }
+            .summary { font-size: 1em; color: #555; }
+            ul { list-style: none; padding: 0; margin: 0; }
+            li { margin-bottom: 5px; }
+            .footer { text-align: center; font-size: 0.8em; color: #999; margin-top: 20px; }
         </style>
     </head>
     <body>
@@ -139,7 +109,7 @@ def send_email_with_news(sender_email: str, sender_password: str, receiver_email
             """
         
         # 요약 내용을 줄바꿈 기준으로 리스트 아이템으로 변환하고, 선행하는 '*'와 공백을 제거
-        html_body += f"""
+        html_body += """
                 <div class="summary">
                     <ul>
         """
@@ -206,12 +176,17 @@ def load_news_from_json(file_path):
     except json.JSONDecodeError:
         logger.error(f"오류: JSON 디코딩 오류 - {file_path}")
         raise
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         raise
 
 def main(pwd: str):
+    # pwd 가 None(환경변수 NVR_MAIL_PWD 미설정) 이거나 빈 문자열이면 발송 불가
+    if not pwd:
+        logger.error("pwd is empty!!")
+        sys.exit(1)
+
     # 사용자 정보 설정 (실제 정보로 변경 필요)
     SENDER_EMAIL = ""  # 발신자 이메일 주소 (실제 네이버 이메일로 변경)
     SENDER_PASSWORD = pwd + 'CH'   # 사용자 암호 (실제 네이버 이메일 비밀번호로 변경)
@@ -224,10 +199,6 @@ def main(pwd: str):
         sys.exit(1)
         
     SENDER_EMAIL = RECEIVER_EMAIL_LIST[0]
-    
-    if pwd == "":
-        logger.error("pwd is empty!!")
-        sys.exit(1)
 
     try:
         # 뉴스 데이터 로드
@@ -236,10 +207,9 @@ def main(pwd: str):
         if news_articles:
             # 이메일 발송
             send_email_with_news(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, news_articles)
-            # send_mail(SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL_LIST, 'test', 'text')
         else:
             logger.warning("발송할 뉴스 데이터가 없습니다.")
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

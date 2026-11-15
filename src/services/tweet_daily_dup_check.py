@@ -206,7 +206,7 @@ def main(base_ymd: str, mode: str = "default"):
 
         logger.info("=" * 50)
 
-    except Exception as e:
+    except Exception:
         msg = traceback.format_exc()
         logger.error(msg)
         sys.exit(1)

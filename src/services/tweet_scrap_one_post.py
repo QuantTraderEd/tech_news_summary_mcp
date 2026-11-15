@@ -1,14 +1,10 @@
 import os
 import sys
 import site
-import traceback
 import logging
 import time
 import json
-import random
 import datetime as dt
-
-import pytz
 
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
@@ -17,11 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import (TimeoutException,
-                                        NoSuchElementException,
-                                        StaleElementReferenceException,
-                                        WebDriverException,
-                                        ElementClickInterceptedException)
+from selenium.common.exceptions import TimeoutException
 
 src_path = os.path.dirname(__file__)
 pjt_home_path = os.path.join(src_path, os.pardir, os.pardir)
@@ -35,8 +27,6 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
-
-kst_timezone = pytz.timezone('Asia/Seoul')
 
 class TweetScrapOnePost:
 
@@ -75,10 +65,15 @@ class TweetScrapOnePost:
             datetime_str = datetime_str.replace('Z', '+00:00')
             # datetime 객체로 파싱
             result = dt.datetime.fromisoformat(datetime_str)
+            if result.tzinfo is None:
+                # 타임존 정보가 없으면 UTC 로 간주 (aware datetime 과 비교 가능하도록)
+                result = result.replace(tzinfo=dt.timezone.utc)
             return result
         except ValueError as e:
             logger.error(f"Failed to parse date string '{datetime_str}': {e}", exc_info=True)
-            return dt.datetime.min  # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
+            # 파싱 실패 시 매우 오래된 날짜 반환하여 필터링되도록 함
+            # (start_date/end_date 가 aware 이므로 tz 없는 datetime.min 은 비교 시 TypeError 발생)
+            return dt.datetime.min.replace(tzinfo=dt.timezone.utc)
 
     def scrap_one_post(self, post_url: str):
         """
