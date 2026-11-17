@@ -1,7 +1,7 @@
 import os
 import json
 
-import google.generativeai as genai
+from google import genai
 import pytest
 
 src_path = os.path.dirname(__file__)
@@ -14,17 +14,19 @@ with open(f'{pjt_home_path}/config.json', 'r') as config_file:
     config = json.load(config_file)
     api_key = config.get("GEMINI_API_KEY")
 
-# Gemini API 키 설정
-genai.configure(api_key=api_key)
+# Gemini API 클라이언트 생성
+client = genai.Client(api_key=api_key)
 
 # 모델 선택 (예: Gemini 3.5 Flash Lite)
 # https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions
-model = genai.GenerativeModel('gemini-3.5-flash-lite')
+model_name = 'gemini-3.5-flash-lite'
 
 @pytest.mark.skip('need API KEY')
 def test_call_gemini_api():
     # 프롬프트 설정 및 요청
-    response = model.generate_content("한국의 수도는 어디인가요?")
+    response = client.models.generate_content(
+        model=model_name,
+        contents="한국의 수도는 어디인가요?")
 
     # 결과 출력
     result = response.text
@@ -36,7 +38,9 @@ def test_translate_call_gemini_api():
     original_text = "xAI $200bn valuation ? It can be bigger than Tesla at this rate."
     translation_prompt = (f"Translate the following English text into a single, most natural and modern Korean sentence. "
                           f"Do not provide any other options or labels.:\n\n---\n{original_text}\n---")
-    response = model.generate_content(translation_prompt)
+    response = client.models.generate_content(
+        model=model_name,
+        contents=translation_prompt)
 
     # 결과 출력
     result = response.text
@@ -51,7 +55,9 @@ def test_summary_call_gemini_api():
         f"Do not provide any other explanations or the original English text.:\n\n"
         f"---\n{original_text}\n---")
 
-    response = model.generate_content(summary_prompt)
+    response = client.models.generate_content(
+        model=model_name,
+        contents=summary_prompt)
 
     # 결과 출력
     result = response.text

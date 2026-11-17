@@ -209,6 +209,10 @@ class NewsCrawler_ZDNet:
         except requests.exceptions.Timeout:
             logger.warning(f"Timeout occurred while fetching content for {article_url}")
             return "타임아웃으로 기사 내용을 찾을 수 없습니다."
+        except requests.exceptions.RequestException as e:
+            # 반환값은 기사 본문으로 저장되어 요약·메일까지 가므로 예외 메시지는 넣지 않고 로그에만 남긴다.
+            logger.error(f"Request error occurred while fetching content for {article_url}: {e}")
+            return "요청 오류로 기사 내용을 찾을 수 없습니다."
         
         soup = BeautifulSoup(response.text, 'html.parser')
 

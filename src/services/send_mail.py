@@ -1,5 +1,6 @@
 import os
 import sys
+import html
 import logging
 import traceback
 import json
@@ -19,6 +20,14 @@ logger.setLevel(logging.INFO)
 stream_log = logging.StreamHandler(sys.stdout)
 stream_log.setFormatter(formatter)
 logger.addHandler(stream_log)
+
+def escape_html(value):
+    """
+    메일 HTML 에 넣을 외부 값(스크래핑 텍스트, Gemini 결과, URL, 날짜 등)을 이스케이프합니다.
+    문자열이 아닌 값(None, 숫자)은 f-string 과 동일하게 str() 로 바꾼 뒤 처리합니다.
+    quote=True(기본값)라서 " 와 ' 도 변환되어 href="..." 속성 안에서도 안전합니다.
+    """
+    return html.escape(str(value))
 
 def load_recv_emails_from_config():
     """
@@ -98,14 +107,14 @@ def send_email_with_news(sender_email: str, sender_password: str, receiver_email
     for news_item in news_data:
         html_body += f"""
             <div class="news-item">
-                <h2>{news_item['title']}</h2>
-                <p class="date">{news_item['date']}</p>                
+                <h2>{escape_html(news_item['title'])}</h2>
+                <p class="date">{escape_html(news_item['date'])}</p>                
         """
         
         # URL이 존재하는 경우에만 추가
         if 'url' in news_item and news_item['url']:
             html_body += f"""
-                <a href="{news_item['url']}" class="url" target="_blank" rel="noopener noreferrer">원문 보기</a>
+                <a href="{escape_html(news_item['url'])}" class="url" target="_blank" rel="noopener noreferrer">원문 보기</a>
             """
         
         # 요약 내용을 줄바꿈 기준으로 리스트 아이템으로 변환하고, 선행하는 '*'와 공백을 제거
@@ -117,7 +126,7 @@ def send_email_with_news(sender_email: str, sender_password: str, receiver_email
             if line.strip(): # 빈 줄은 제외
                 # Remove leading asterisk and any space after it
                 cleaned_line = line.strip().lstrip('* ').strip()
-                html_body += f"<li>{cleaned_line}</li>"
+                html_body += f"<li>{escape_html(cleaned_line)}</li>"
         html_body += """
                     </ul>
                 </div>

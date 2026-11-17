@@ -1,6 +1,7 @@
 import os
 import site
 import pytest
+import requests
 import datetime as dt
 
 from unittest.mock import patch, MagicMock, mock_open
@@ -190,6 +191,44 @@ def test_fetch_article_content_not_found(mock_get, crawler):
     content = crawler.fetch_article_content("http://fake.url/article")
     assert content == "기사 내용을 찾을 수 없습니다."
 
+REQUEST_ERROR_MESSAGE = "요청 오류로 기사 내용을 찾을 수 없습니다."
+TIMEOUT_MESSAGE = "타임아웃으로 기사 내용을 찾을 수 없습니다."
+
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_fetch_article_content_http_error(mock_get, crawler):
+    """HTTPError(404/5xx)가 나도 예외 없이 고정 문구를 반환하고, 예외 메시지는 반환값에 섞이지 않아야 한다."""
+    url = "http://fake.url/article"
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        f"404 Client Error: Not Found for url: {url}")
+    mock_get.return_value = mock_response
+
+    content = crawler.fetch_article_content(url)
+
+    mock_get.assert_called_once_with(url, headers=crawler.headers, timeout=10)
+    assert content == REQUEST_ERROR_MESSAGE
+
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_fetch_article_content_connection_error(mock_get, crawler):
+    """ConnectionError 가 나도 예외 없이 고정 문구를 반환하고, 예외 메시지는 반환값에 섞이지 않아야 한다."""
+    url = "http://fake.url/article"
+    mock_get.side_effect = requests.exceptions.ConnectionError(
+        f"HTTPSConnectionPool(host='fake.url'): Max retries exceeded with url: {url}")
+
+    content = crawler.fetch_article_content(url)
+
+    assert content == REQUEST_ERROR_MESSAGE
+
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_fetch_article_content_timeout_keeps_timeout_message(mock_get, crawler):
+    """ReadTimeout 은 새 RequestException 분기에 가려지지 않고 기존 타임아웃 문구를 반환해야 한다."""
+    mock_get.side_effect = requests.exceptions.ReadTimeout("read timed out")
+
+    content = crawler.fetch_article_content("http://fake.url/article")
+
+    assert content == TIMEOUT_MESSAGE
+    assert content != REQUEST_ERROR_MESSAGE
+
 # --- Test Cases for main Function ---
 
 @patch('src.services.news_crawler_zdnet.NewsCrawler_ZDNet')
@@ -234,3 +273,54 @@ def test_main_exception(mock_exit, MockCrawler, mock_user_agent):
     # Run main and assert that sys.exit(1) is called
     zdnet_main(target_section="반도체", base_ymd="20240101")
     mock_exit.assert_called_once_with(1)
+
+@patch('src.services.news_crawler_zdnet.json.dump')
+@patch('src.services.news_crawler_zdnet.open', new_callable=mock_open)
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_main_continues_when_one_article_fetch_fails(mock_get, mock_file_open, mock_json_dump, mock_user_agent):
+    """기사 한 건의 본문 요청이 HTTPError 여도 main 은 종료하지 않고 두 기사를 모두 저장해야 한다.
+
+    크롤러 클래스는 목 처리하지 않아 fetch_article_content 가 실제로 실행된다.
+    requests.get 과 파일 쓰기(open, json.dump)만 목 처리한다.
+    """
+    list_html = """
+    <html><body>
+        <div class="newsPost">
+            <a href="/news/view.html?no=20250628100000"></a>
+            <div class="assetText"><h3>Failing Article</h3></div>
+            <p class="byline"><span>2025.06.28 AM 10:00</span></p>
+        </div>
+        <div class="newsPost">
+            <a href="/news/view.html?no=20250628110000"></a>
+            <div class="assetText"><h3>Good Article</h3></div>
+            <p class="byline"><span>2025.06.28 AM 11:00</span></p>
+        </div>
+    </body></html>
+    """
+    failing_url = "https://zdnet.co.kr/news/view.html?no=20250628100000"
+    good_url = "https://zdnet.co.kr/news/view.html?no=20250628110000"
+
+    def fake_get(url, **kwargs):
+        response = MagicMock()
+        if url == BASE_URL:
+            response.text = list_html
+        elif url == failing_url:
+            response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+                f"500 Server Error: Internal Server Error for url: {url}")
+        elif url == good_url:
+            response.text = '<html><body><div id="articleBody"><p>Good body text.</p></div></body></html>'
+        else:
+            raise AssertionError(f"unexpected url: {url}")
+        return response
+
+    mock_get.side_effect = fake_get
+
+    zdnet_main(target_section="반도체", base_ymd="20250628")  # SystemExit 이 나면 테스트 실패
+
+    expected_filepath = os.path.join(pjt_home_path, 'data/zdnet_semiconductor_articles.json')
+    mock_file_open.assert_called_once_with(expected_filepath, 'w', encoding='utf-8')
+    mock_json_dump.assert_called_once()
+    saved_articles = mock_json_dump.call_args.args[0]
+    assert [a['url'] for a in saved_articles] == [failing_url, good_url]
+    assert saved_articles[0]['content'] == REQUEST_ERROR_MESSAGE
+    assert saved_articles[1]['content'] == "Good body text."
