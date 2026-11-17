@@ -14,7 +14,7 @@ pjt_home_path = os.path.join(src_path, os.pardir)
 pjt_home_path = os.path.abspath(pjt_home_path)
 site.addsitedir(pjt_home_path)
 
-from src.services.news_crawler_zdnet import NewsCrawler_ZDNet, PARSE_FAILED_DATETIME, main as zdnet_main
+from src.services.news_crawler_zdnet import NewsCrawler_ZDNet, PARSE_FAILED_DATETIME, MAX_REQUEST_ATTEMPTS, main as zdnet_main
 
 # Constants
 BASE_URL = "https://zdnet.co.kr/news/?lstcode=0050"
@@ -28,6 +28,11 @@ def mock_user_agent(mocker):
     mock = mocker.patch('src.services.news_crawler_zdnet.UserAgent')
     mock.return_value.random = 'test-user-agent'
     return mock
+
+@pytest.fixture(autouse=True)
+def mock_sleep(mocker):
+    """재시도 대기(time.sleep)로 테스트가 느려지지 않도록 목 처리한다."""
+    return mocker.patch('src.services.news_crawler_zdnet.time.sleep')
 
 @pytest.fixture
 def crawler(mock_user_agent):
@@ -228,6 +233,77 @@ def test_fetch_article_content_timeout_keeps_timeout_message(mock_get, crawler):
 
     assert content == TIMEOUT_MESSAGE
     assert content != REQUEST_ERROR_MESSAGE
+
+# --- Test Cases for retry on timeout ---
+
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_fetch_articles_retries_after_timeout(mock_get, crawler, mock_sleep):
+    """목록 페이지 요청이 타임아웃 나면 재시도하고, 재시도가 성공하면 정상적으로 기사를 수집해야 한다."""
+    mock_response = MagicMock()
+    mock_response.text = """
+    <html><body>
+        <div class="newsPost">
+            <a href="/news/view.html?no=20250628100000"></a>
+            <div class="assetText"><h3>Article In Range</h3></div>
+            <p class="byline"><span>2025.06.28 AM 10:00</span></p>
+        </div>
+    </body></html>
+    """
+    mock_get.side_effect = [requests.exceptions.ReadTimeout("read timed out"), mock_response]
+    crawler.set_target_date_range(KST.localize(dt.datetime(2025, 6, 27)),
+                                  KST.localize(dt.datetime(2025, 6, 29)))
+
+    articles = crawler.fetch_articles()
+
+    assert mock_get.call_count == 2
+    mock_sleep.assert_called_once()
+    assert [a['title'] for a in articles] == ["Article In Range"]
+
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_fetch_articles_skips_when_all_retries_time_out(mock_get, crawler):
+    """재시도까지 모두 타임아웃이면 예외 없이 빈 목록을 반환해 해당 섹션을 건너뛰어야 한다."""
+    mock_get.side_effect = requests.exceptions.ReadTimeout("read timed out")
+
+    articles = crawler.fetch_articles()
+
+    assert articles == []
+    assert mock_get.call_count == MAX_REQUEST_ATTEMPTS
+
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_fetch_articles_does_not_retry_http_error(mock_get, crawler):
+    """HTTP 오류(4xx/5xx)는 재시도하지 않고 바로 건너뛰어야 한다."""
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Client Error")
+    mock_get.return_value = mock_response
+
+    articles = crawler.fetch_articles()
+
+    assert articles == []
+    mock_get.assert_called_once()
+
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_fetch_article_content_retries_after_timeout(mock_get, crawler):
+    """본문 요청이 타임아웃 나도 재시도가 성공하면 본문을 반환해야 한다."""
+    mock_response = MagicMock()
+    mock_response.text = '<html><body><div id="articleBody"><p>Body text.</p></div></body></html>'
+    mock_get.side_effect = [requests.exceptions.ConnectTimeout("connect timed out"), mock_response]
+
+    content = crawler.fetch_article_content("http://fake.url/article")
+
+    assert mock_get.call_count == 2
+    assert content == "Body text."
+
+@patch('src.services.news_crawler_zdnet.json.dump')
+@patch('src.services.news_crawler_zdnet.open', new_callable=mock_open)
+@patch('src.services.news_crawler_zdnet.requests.get')
+def test_main_does_not_exit_when_list_page_times_out(mock_get, mock_file_open, mock_json_dump, mock_user_agent):
+    """목록 페이지가 계속 타임아웃 나도 main 은 sys.exit 하지 않고 빈 목록을 저장해야 한다."""
+    mock_get.side_effect = requests.exceptions.ReadTimeout("read timed out")
+
+    zdnet_main(target_section="반도체", base_ymd="20250628")  # SystemExit 이 나면 테스트 실패
+
+    mock_json_dump.assert_called_once()
+    assert mock_json_dump.call_args.args[0] == []
 
 # --- Test Cases for main Function ---
 
