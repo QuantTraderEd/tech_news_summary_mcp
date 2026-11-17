@@ -150,7 +150,7 @@ def create_email_body(posts_data):
             # 제목이 있으면 h3 태그로 만듭니다.
             if title:
                 title = f"{title} ({create_str_date})"
-                title_html = f'<h3 class="post-title">{title}</h3>'
+                title_html = f'<h3 class="post-title">{send_mail.escape_html(title)}</h3>'
             
             summary_html = ""
             if isinstance(summary, str):
@@ -160,10 +160,11 @@ def create_email_body(posts_data):
                     for item in summary_items:
                         clean_item = item.strip().lstrip('*').strip()
                         if clean_item:
-                            summary_html += f"<li>{clean_item}</li>"
+                            summary_html += f"<li>{send_mail.escape_html(clean_item)}</li>"
                     summary_html += "</ul>"
                 else:
-                    summary_html = summary.replace('\n', '<br>')
+                    # 이스케이프를 먼저 한 뒤 줄바꿈을 <br> 로 바꿔야 <br> 태그가 글자로 나오지 않는다
+                    summary_html = send_mail.escape_html(summary).replace('\n', '<br>')
             else:
                 summary_html = "요약 없음"
             
@@ -177,8 +178,9 @@ def create_email_body(posts_data):
 
         # 2. 요약이 없고 번역문(translated_text)만 있는 경우, 번역문 HTML을 생성합니다.
         elif translated_text:
-            processed_text = translated_text.replace('\n', '<br>')
-            processed_text = f"{processed_text.replace('<br>', '')} ({create_str_date})"
+            # 줄바꿈을 제거한 번역문을 이스케이프한 뒤 날짜를 붙인다
+            processed_text = translated_text.replace('\n', '')
+            processed_text = f"{send_mail.escape_html(processed_text)} ({create_str_date})"
             logger.debug(f"processed_text: => \n{processed_text}")
             main_content_html = f"""
             <div class="post-text">
@@ -190,10 +192,10 @@ def create_email_body(posts_data):
         # --- 게시물 HTML 구조를 만듭니다 ---
         html_body += f"""
             <div class="post">
-                <div class="post-header">게시일시: {created_at}</div>
-                <div class="post-text"><strong>원문:</strong> {original_text}</div>
+                <div class="post-header">게시일시: {send_mail.escape_html(created_at)}</div>
+                <div class="post-text"><strong>원문:</strong> {send_mail.escape_html(original_text)}</div>
                 {main_content_html}
-                <p><a href="{url}" class="post-link">{url}</a></p>
+                <p><a href="{send_mail.escape_html(url)}" class="post-link">{send_mail.escape_html(url)}</a></p>
             </div>
         """
         
