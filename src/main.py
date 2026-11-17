@@ -183,15 +183,26 @@ def run_tweet_rerun_batch(base_ymd=None):
     if not base_ymd:
         base_ymd = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")  # 기본값은 현재 날짜 (UTC 기준)
 
-    gcs_download_json.download_gcs_posts_json_to_local(target_date=base_ymd)
-    tweet_summarizer.main(base_ymd)
+    # 두 목록(TARGET_USERNAMES, TARGET_USERNAMES_2ND) 모두를 대상으로 하되, 해당 일자에 GCS 에 수집 파일이 있는 사용자만 요약한다.
+    # (GCS 에 파일이 없는 사용자는 로컬에 예전 실행의 {user}_posts.json 이 남아 있어도 처리하지 않는다)
+    # 이미 요약한 게시물은 tweet_summarizer 가 누적 파일에서 재사용하므로 남은 것만 Gemini API 를 호출한다.
+    target_usernames = list(dict.fromkeys(tweet_scrapper_post.TARGET_USERNAMES + tweet_scrapper_post.TARGET_USERNAMES_2ND))
+    tweet_usernames = gcs_download_json.download_gcs_posts_json_to_local(target_user_list=target_usernames,
+                                                                         target_date=base_ymd)
+
+    if not tweet_usernames:
+        logger.warning(f"GCS 에 {base_ymd} 일자 수집 파일(posts.json)이 있는 사용자가 없어 요약을 건너뜁니다.")
+        return
+
+    logger.info(f"tweet_rerun 대상 사용자 ({len(tweet_usernames)}/{len(target_usernames)}명): {tweet_usernames}")
+    tweet_summarizer.main(base_ymd, tweet_usernames=tweet_usernames)
 
     # 임시 메일링 중단
     # pwd = os.environ.get('NVR_MAIL_PWD')
     # send_mail_tweet.main(pwd, base_ymd)
 
-    count_tweet_posts()
-    
+    count_tweet_posts(tweet_usernames=tweet_usernames)
+
 def run_tweet_single_user_batch(base_ymd=None, tweet_username=None):
     
     if not base_ymd:

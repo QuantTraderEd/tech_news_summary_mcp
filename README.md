@@ -14,7 +14,10 @@
 
 ## 트위터 게시글 수집 (Selenium 스크래핑)
 - **수집 대상**: `src/services/tweet_scrapper_post.py` 의 `TARGET_USERNAMES`, `TARGET_USERNAMES_2ND`
-- **번역/요약**: 수집한 게시글을 Gemini API로 번역·요약하고, 일자별 누적 파일(`summarized_posts_agg.json`)과 비교해 중복 게시글에 `[중복]` 태그 처리
+- **번역/요약**: 수집한 게시글을 Gemini API로 번역·요약합니다.
+  - 요약 전에 당일·전일 누적 파일(`summarized_posts_agg.json`)을 받아, URL과 원문이 같은 게시글은 기존 번역·요약을 재사용합니다(API 실패 문구가 든 항목만 다시 요약).
+  - 사용자 한 명을 처리할 때마다 당일 누적 파일을 GCS에 저장하므로, 중간에 끊겨도 그때까지의 요약이 남고 다음 실행이 나머지만 요약합니다.
+  - 전일 누적 파일에 있는 게시글에는 `summarized_posts.json`에서 `[중복]` 태그를 붙입니다.
 
 ## 배치 실행 (POST /execute-batch)
 요청 본문: `{"batch_type": "<type>", "params": {...}}` — 배치는 응답 반환 후 백그라운드로 실행됩니다.
@@ -24,7 +27,7 @@
 | `news` | - | 뉴스 수집(ZDNet/디일렉/ETNEWS) → GCS 업로드 → 요약 → 메일 발송 |
 | `tweet` | - | `TARGET_USERNAMES` 게시글 수집 → 번역/요약 |
 | `tweet_2nd` | - | `TARGET_USERNAMES_2ND` 게시글 수집 → 번역/요약 |
-| `tweet_rerun` | `base_ymd` | GCS 에 저장된 해당 일자 posts.json 으로 번역/요약만 재실행 |
+| `tweet_rerun` | `base_ymd` | `TARGET_USERNAMES`·`TARGET_USERNAMES_2ND` 중 해당 일자 GCS 에 posts.json 이 있는 사용자만 내려받아 번역/요약 재실행 (이미 요약된 게시글은 재사용하므로 남은 것만 요약) |
 | `tweet_single_user` | `base_ymd`, `tweet_username` | 한 사용자의 게시글만 수집 |
 | `tweet_daily_dup` | `base_ymd`, `mode`(`default`/`mix`) | 일자별 중복 정리 후 Tweet 요약 메일 발송 |
 

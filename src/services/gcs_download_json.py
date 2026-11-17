@@ -70,14 +70,29 @@ def download_gcs_to_local(
 
     return 0
     
-def download_gcs_posts_json_to_local(target_user_list: list = None, target_date: str = '20000101'):
+def download_gcs_posts_json_to_local(target_user_list: list = None, target_date: str = '20000101') -> list:
+    """
+    GCS {target_date}/ 의 {user}_posts.json 파일을 로컬 data 디렉토리로 다운로드합니다.
+
+    Args:
+        target_user_list (list, optional): 대상 트위터 사용자 아이디 목록. 비어 있으면 TARGET_USERNAMES 를 사용합니다.
+        target_date (str): GCS 경로에 사용할 날짜 문자열 (YYYYMMDD 형식).
+
+    Returns:
+        list: 실제로 다운로드한(download_gcs_to_local 반환값 0) 사용자 목록 (target_user_list 순서)
+    """
     if not target_user_list:
         target_user_list = tweet_scrapper_post.TARGET_USERNAMES
 
+    downloaded_users = []
     for target_user in target_user_list:
         file_name = f"{target_user}_posts.json"
         ret = download_gcs_to_local(file_name, date_str=target_date)
         logger.info(f"ret => {ret}")
+        if ret == 0:
+            downloaded_users.append(target_user)
+
+    return downloaded_users
 
 
 if __name__ == '__main__':
