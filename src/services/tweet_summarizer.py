@@ -7,6 +7,7 @@ import json
 import math
 import time
 import datetime as dt
+from collections import Counter
 
 import httpx2
 from google import genai
@@ -306,10 +307,57 @@ def remove_duplicate_posts(posts_list: list) -> list:
             unique_posts.append(item)
     return unique_posts
 
-def process_posts(input_filename: str, summarized_posts: list):
+def build_reuse_posts(today_posts_agg: list, prev_posts_agg: list) -> dict:
     """
-    JSON 파일을 읽고, 각 게시물을 처리한 후, processed_posts 리스트에 추가
+    당일·전일 누적 게시물로 이미 요약한 게시물의 재사용 맵(url -> 게시물)을 만듭니다.
+    같은 url 이 양쪽에 있으면 당일 것이, 한 목록 안에 여러 번 있으면 앞쪽 것이 우선입니다.
+    url 이 없는 항목은 넣지 않습니다.
     """
+    reuse_posts = {}
+    for posts_agg in (today_posts_agg, prev_posts_agg):
+        for post in posts_agg:
+            post_url = post.get('url')
+            if post_url and post_url not in reuse_posts:
+                reuse_posts[post_url] = post
+    return reuse_posts
+
+def _get_reusable_value(reuse_candidate, field: str):
+    """
+    재사용 후보 게시물에서 field 값을 꺼냅니다.
+    값이 비어 있지 않은 문자열이고 API 실패 문구(API_ERROR_TEXT)가 아닐 때만 그 값을, 아니면 None 을 반환합니다.
+    """
+    if not reuse_candidate:
+        return None
+    value = reuse_candidate.get(field)
+    if isinstance(value, str) and value.strip() and value != API_ERROR_TEXT:
+        return value
+    return None
+
+def process_posts(input_filename: str, summarized_posts: list, reuse_posts: dict = None, stats: Counter = None):
+    """
+    JSON 파일을 읽고, 각 게시물을 처리한 후, summarized_posts 리스트에 추가
+
+    이미 요약한 게시물은 Gemini API 를 다시 호출하지 않고 기존 결과를 재사용합니다.
+      - reuse_posts 에서 url 로 찾은 게시물의 원문(text)이 지금 원문과 같을 때만 재사용 후보로 쓴다.
+        원문이 다르면(수정된 글, 수집 실패 후 다시 수집된 글) 전부 다시 요약한다.
+      - 재사용은 필드 단위다. 필요한 필드(translated_text / title / summary)마다 후보의 값이 비어 있지 않고
+        API 실패 문구가 아니면 그 값을 쓰고, 아니면 그 필드만 Gemini API 를 호출한다.
+      - 처리한 게시물은 reuse_posts 에 반영해, 같은 실행에서 같은 url 이 다시 나오면 재사용되게 한다.
+
+    :param str input_filename: 수집 결과 파일 경로 ({user}_posts.json)
+    :param list summarized_posts: 처리한 게시물을 추가할 리스트
+    :param dict reuse_posts: 이미 요약한 게시물 맵 (url -> 게시물). 처리한 게시물이 이 맵에 반영된다.
+                             None 이면 빈 맵으로 시작하므로 이전 누적에서 재사용하는 것은 없지만,
+                             같은 호출 안에서 같은 url(같은 원문)이 다시 나오면 앞서 처리한 결과를 재사용한다
+    :param Counter stats: 실행 통계를 누적할 Counter
+                          (gemini_calls: Gemini API 호출 횟수, reused_posts: 필요한 필드를 모두 재사용한 게시물 수,
+                           partially_reused_posts: 일부 필드만 재사용하고 나머지는 다시 요약한 게시물 수)
+    """
+    if reuse_posts is None:
+        reuse_posts = {}
+    if stats is None:
+        stats = Counter()
+
     try:
         logger.info(f"load data from {input_filename} ...")
         with open(input_filename, 'r', encoding='utf-8') as f:
@@ -333,45 +381,147 @@ def process_posts(input_filename: str, summarized_posts: list):
         
         text_len = len(original_text)
 
+        # 생성할 필드와 프롬프트 (Gemini API 는 이 순서대로 호출한다)
+        field_prompts = []
+
         if text_len >= 250:
             logger.info(f"  - 내용 길이({text_len}) >= 250. 번역 및 타이틀 & 요약을 생성 진행합니다.")
             translation_prompt = f"Translate the following English text to Korean:\n\n---\n{original_text}\n---"
-            post['translated_text'] = call_gemini_api(translation_prompt)
-                        
+            field_prompts.append(('translated_text', translation_prompt))
+
             title_prompt = (f"Create a concise and representative title in Korean for the following English text. "
                             f"Provide only the title text without any quotation marks or extra words.\n\n---\n{original_text}\n---")
-            post['title'] = call_gemini_api(title_prompt)
+            field_prompts.append(('title', title_prompt))
 
             summary_prompt = (
                 f"Summarize the following English text into a 3-point bullet list in most natural and modern Korean. "
                 f"Do not provide any other explanations or the original English text.:\n\n"
                 f"---\n{original_text}\n---")
-            post['summary'] = call_gemini_api(summary_prompt)
-            
+            field_prompts.append(('summary', summary_prompt))
+
         elif 15 <= text_len < 250:
             logger.info(f"  - 내용 길이({text_len}) < 250. 번역만 진행합니다.")
             translation_prompt = (
                 f"Translate the following English text into a single, most natural and modern Korean sentence. "
                 f"Do not provide any other options or labels.:\n\n---\n{original_text}\n---")
-            post['translated_text'] = call_gemini_api(translation_prompt)
-            
+            field_prompts.append(('translated_text', translation_prompt))
+
         else:
             logger.info(f"  - 내용 길이({text_len}) < 15. 처리를 건너뜁니다.")
 
+        # 같은 url 로 이미 요약한 게시물이 있고 원문이 같으면 재사용 후보로 쓴다.
+        post_url = post.get('url')
+        reuse_candidate = reuse_posts.get(post_url) if post_url else None
+        if reuse_candidate is not None and reuse_candidate.get('text') != original_text:
+            reuse_candidate = None
+
+        reused_fields = []
+        for field, prompt_text in field_prompts:
+            reusable_value = _get_reusable_value(reuse_candidate, field)
+            if reusable_value is not None:
+                post[field] = reusable_value
+                reused_fields.append(field)
+            else:
+                stats['gemini_calls'] += 1
+                post[field] = call_gemini_api(prompt_text)
+
+        if reused_fields:
+            if len(reused_fields) == len(field_prompts):
+                stats['reused_posts'] += 1
+                logger.info("  - 이미 요약한 게시물이라 기존 결과를 재사용합니다.")
+            else:
+                stats['partially_reused_posts'] += 1
+                resummarized_fields = [field for field, _ in field_prompts if field not in reused_fields]
+                logger.info(f"  - 기존 결과 일부를 재사용합니다. 재사용: {', '.join(reused_fields)}, "
+                            f"다시 요약: {', '.join(resummarized_fields)}")
+
         summarized_posts.append(post)
+
+        # 방금 처리한 게시물을 재사용 맵에 반영 (같은 실행에서 같은 url 이 다시 나오면 재사용)
+        if post_url:
+            reuse_posts[post_url] = post
+
+def load_summarized_posts_agg(date_str: str):
+    """
+    GCS {date_str}/summarized_posts_agg.json 을 로컬 data 디렉토리에 내려받아 읽습니다.
+
+    당일·전일 누적 파일은 로컬의 같은 경로(data/summarized_posts_agg.json)에 내려받으므로, 받은 직후에 읽어
+    메모리에 올려 두고 그 내용을 씁니다.
+    다운로드 실패, JSON 파싱 오류, 형식 오류(게시물(dict) 목록이 아님)는 예외로 올립니다.
+    (깨진 누적 파일을 빈 것으로 보고 덮어쓰지 않도록)
+
+    :param str date_str: 누적 파일 일자 (yyyymmdd)
+    :return: (download_gcs_to_local 반환값, 게시물 list). 반환값이 0 이 아니면(파일 없음 등) 빈 list
+    """
+    ret = gcs_download_json.download_gcs_to_local(file_name='summarized_posts_agg.json', date_str=date_str)
+    if ret != 0:
+        return ret, []
+
+    agg_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts_agg.json')
+    with open(agg_filename, 'r', encoding='utf-8') as f:
+        posts_agg = json.load(f)
+
+    if not isinstance(posts_agg, list) or not all(isinstance(post, dict) for post in posts_agg):
+        raise ValueError(f"{date_str}/summarized_posts_agg.json 이 게시물(dict) 목록 형식이 아닙니다.")
+
+    return ret, posts_agg
+
+def save_summarized_posts_agg(summarized_posts: list, summarized_old_posts_agg: list, base_ymd: str) -> list:
+    """
+    이번 실행에서 처리한 게시물과 시작할 때 받은 당일 누적 게시물을 합쳐 url 기준으로 중복을 제거한 뒤,
+    로컬 summarized_posts_agg.json 에 쓰고 GCS {base_ymd}/ 에 업로드합니다.
+    이번 실행에서 처리한 게시물이 앞에 오므로, 같은 url 이면 이번 실행의 결과가 남습니다.
+
+    로컬 파일에는 전일 누적 파일이 내려받아져 있을 수 있으므로, 업로드하기 전에 항상 당일 누적 내용을 다시 씁니다.
+
+    :param list summarized_posts: 지금까지 이번 실행에서 처리한 게시물 전체 (사용자 순서대로)
+    :param list summarized_old_posts_agg: 시작할 때 GCS 에서 받은 당일 누적 게시물
+    :param str base_ymd: 누적 파일 일자 (yyyymmdd)
+    :return: 저장한 누적 게시물 list
+    """
+    output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts_agg.json')
+
+    logger.info(f"summarized_posts cnt => {len(summarized_posts)}")
+    summarized_posts_agg = summarized_posts + summarized_old_posts_agg
+    logger.info(f"summarized_posts (agg) cnt => {len(summarized_posts_agg)}")
+
+    # 중복 제거 함수 호출
+    summarized_posts_agg = remove_duplicate_posts(summarized_posts_agg)
+    logger.info(f"summarized_posts (agg-non-dup) cnt => {len(summarized_posts_agg)}")
+
+    with open(output_filename, 'w', encoding='utf-8') as f:
+        json.dump(summarized_posts_agg, f, ensure_ascii=False, indent=4)
+
+    # json 파일 GCS 에 업로드
+    gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
+                                             date_str=base_ymd)
+
+    return summarized_posts_agg
 
 # --- 3. 메인 로직 ---
 def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
     """
     번역&요약 스크립트 메인 실행 함수
+
+    gcs_mode=True 이면 요약을 이어서 할 수 있게 다음과 같이 처리합니다.
+      1. 요약을 시작하기 전에 당일(base_ymd)·전일(base_ymd - 1) 누적 파일(summarized_posts_agg.json)을 GCS 에서 받아,
+         이미 요약한 게시물(같은 url, 같은 원문)은 Gemini API 를 다시 호출하지 않고 재사용한다. (같은 url 이면 당일 것이 우선)
+         당일 누적 파일은 파싱·형식 오류이거나 다운로드 반환값이 0(성공)·1(파일 없음)이 아니면 요약을 시작하기 전에 중단하고,
+         전일 누적 파일은 파싱·형식 오류이면 없는 것으로 보고 계속 진행한다.
+      2. 사용자 한 명의 처리가 끝날 때마다 당일 누적 파일을 GCS 에 저장해, 중간에 인스턴스가 종료돼도
+         그때까지의 요약이 남게 한다. (처리한 게시물이 없는 사용자는 건너뜀)
+      3. 모든 사용자를 처리한 뒤 summarized_posts.json 에서 전일 누적 파일에 url 이 있는 게시물에 [중복] 태그를 붙인다.
+    gcs_mode=False 이면 GCS 에 접근하지 않고 summarized_posts.json 만 로컬에 씁니다.
+
     :param str base_ymd: post 수집 기준 일자 (yyyymmdd)
     :param bool gcs_mode: GCS 사용 여부
     :param list tweet_usernames: 변역&요약 할 tweet 유저이름 list (default: None)
     """
     logger.info("="*50)
     logger.info("Tweet 번역&요약 스크립트를 시작합니다.")
-    
+
     summarized_posts = []
+    summary_stats = Counter()
 
     if tweet_usernames is None:
         tweet_source_list = tweet_scrapper_post.TARGET_USERNAMES
@@ -379,13 +529,63 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
         tweet_source_list = tweet_usernames
 
     # tweet_source_list = ['tweet_agg_one']
-    
+
     try:
+        base_ymd_prev = (dt.datetime.strptime(base_ymd, "%Y%m%d") - dt.timedelta(days=1)).strftime("%Y%m%d")
+
+        summarized_old_posts_agg = []   # 시작할 때 받은 당일 누적
+        summarized_prev_posts_agg = []  # 전일 누적
+        prev_agg_ret = None
+
+        if gcs_mode:
+            # 당일·전일 누적 파일은 로컬의 같은 경로에 내려받으므로 받은 직후에 읽어 메모리에 올려 둔다.
+            # (base_ymd)/summarized_posts_agg.json 파일 다운로드
+            # 당일 누적 파일의 파싱·형식 오류는 예외로 올려 중단한다. (깨진 파일을 빈 것으로 보고 덮어쓰면 안 됨)
+            ret, summarized_old_posts_agg = load_summarized_posts_agg(base_ymd)
+            logger.info(f"download_gcs_to_local ret => {ret}")
+            if ret not in (0, 1):
+                # 접근 오류(2) 등인데 빈 누적으로 시작하면 첫 사용자 처리 후 GCS 의 당일 누적을 이번 처리분만으로 덮어쓸 수 있다.
+                raise RuntimeError(f"{base_ymd}/summarized_posts_agg.json 다운로드에 실패해(download_gcs_to_local ret => {ret}) "
+                                   f"당일 누적을 덮어쓰지 않도록 중단합니다.")
+            if ret == 0:
+                logger.info(f"summarized_posts (old-agg) cnt => {len(summarized_old_posts_agg)}")
+
+            # (base_ymd - 1)/summarized_posts_agg.json 파일 다운로드
+            # 전일 누적 파일은 덮어쓰지 않으므로, 파싱·형식 오류(ValueError 계열)이면 없는 것으로 보고 계속 진행한다.
+            # (다운로드 자체의 예외는 그대로 올라가 중단된다)
+            try:
+                prev_agg_ret, summarized_prev_posts_agg = load_summarized_posts_agg(base_ymd_prev)
+            except ValueError as e:
+                prev_agg_ret, summarized_prev_posts_agg = None, []
+                logger.error(f"{base_ymd_prev}/summarized_posts_agg.json 을 읽지 못해(파싱·형식 오류) "
+                             f"전일 누적이 없는 것으로 보고 계속 진행합니다. => {type(e).__name__}: {e}")
+            else:
+                logger.info(f"download_gcs_to_local ret {base_ymd_prev}/summarized_posts_agg.json for => {prev_agg_ret}")
+                if prev_agg_ret == 0:
+                    logger.info("loaded summarized_prev_posts_agg.json!!")
+                    logger.info(f"summarized_prev_posts_agg cnt => {len(summarized_prev_posts_agg)}")
+
+        # 이미 요약한 게시물 재사용 맵 (url -> 게시물, 같은 url 이면 당일 것이 우선)
+        reuse_posts = build_reuse_posts(summarized_old_posts_agg, summarized_prev_posts_agg)
+        logger.info(f"reuse_posts cnt => {len(reuse_posts)}")
+
+        agg_saved = False
         for tweet_user in tweet_source_list:
             input_filename = os.path.join(pjt_home_path, 'data', f'{tweet_user}_posts.json')
-        
-            process_posts(input_filename, summarized_posts)
-        
+            processed_cnt_before = len(summarized_posts)
+
+            process_posts(input_filename, summarized_posts, reuse_posts, summary_stats)
+
+            # 사용자 한 명의 처리가 끝날 때마다 당일 누적 파일을 저장한다. (처리한 게시물이 없으면 건너뜀)
+            if gcs_mode and len(summarized_posts) > processed_cnt_before:
+                save_summarized_posts_agg(summarized_posts, summarized_old_posts_agg, base_ymd)
+                agg_saved = True
+
+        logger.info(f"Tweet 요약 집계 - 처리 게시물: {len(summarized_posts)}건")
+        logger.info(f"Tweet 요약 집계 - Gemini 호출: {summary_stats['gemini_calls']}회")
+        logger.info(f"Tweet 요약 집계 - 재사용 게시물: {summary_stats['reused_posts']}건")
+        logger.info(f"Tweet 요약 집계 - 일부 필드만 재사용: {summary_stats['partially_reused_posts']}건")
+
         output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts.json')
 
         with open(output_filename, 'w', encoding='utf-8') as f:
@@ -403,54 +603,20 @@ def main(base_ymd: str, gcs_mode: bool = True, tweet_usernames: list = None):
         #     summarized_posts = json.load(f)
         
 
-        output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts_agg.json')
-
         if gcs_mode:
-            ret = gcs_download_json.download_gcs_to_local(file_name='summarized_posts_agg.json', date_str=base_ymd)
-            logger.info(f"download_gcs_to_local ret => {ret}")
-
-            if ret == 0:
-                with open(output_filename, 'r', encoding='utf-8') as f:
-                    summarized_old_posts_agg = json.load(f)
-                    logger.info(f"summarized_posts (old-agg) cnt => {len(summarized_old_posts_agg)}")
-
-                logger.info(f"summarized_posts cnt => {len(summarized_posts)}")
-                summarized_posts_agg = summarized_posts + summarized_old_posts_agg
-                logger.info(f"summarized_posts (agg) cnt => {len(summarized_posts_agg)}")
-
-                # 중복 제거 함수 호출
-                summarized_posts_agg = remove_duplicate_posts(summarized_posts_agg)
-                logger.info(f"summarized_posts (agg-non-dup) cnt => {len(summarized_posts_agg)}")
+            # 당일 누적 파일은 사용자마다 이미 저장했다 (save_summarized_posts_agg)
+            output_filename = os.path.join(pjt_home_path, 'data', 'summarized_posts_agg.json')
+            if agg_saved:
+                logger.info(f"✅ 통합 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
             else:
-                summarized_posts_agg = summarized_posts
-
-            with open(output_filename, 'w', encoding='utf-8') as f:
-                json.dump(summarized_posts_agg, f, ensure_ascii=False, indent=4)
-
-            # json 파일 GCS 에 업로드
-            gcs_upload_json.upload_local_file_to_gcs(local_file_path=output_filename,
-                                                     date_str=base_ymd)
-
-            logger.info(f"✅ 통합 처리가 완료되었습니다. 결과가 '{output_filename}' 파일에 저장되었습니다.")
+                logger.info("이번 실행에서 처리한 게시물이 없어 누적 파일을 저장하지 않았습니다.")
             logger.info("="*50)
-            
-            # (base_ymd - 1)/summarized_posts_agg.json 파일 다운로드
-            base_ymd_prev = (dt.datetime.strptime(base_ymd, "%Y%m%d") - dt.timedelta(days=1)).strftime("%Y%m%d")
-            ret = gcs_download_json.download_gcs_to_local(file_name='summarized_posts_agg.json', date_str=base_ymd_prev)
-            logger.info(f"download_gcs_to_local ret {base_ymd_prev}/summarized_posts_agg.json for => {ret}")
-            
-            # (base_ymd - 1)/summarized_posts_agg.json 파일 과 (base_ymd)/summarized_posts_agg.json (업데이트하기 전) 파일 합체
-            summarized_prev_posts_agg = []
-            if ret == 0:
-                with open(output_filename, 'r', encoding='utf-8') as f:
-                    summarized_prev_posts_agg = json.load(f)
-                    logger.info("loaded summarized_prev_posts_agg.json!!")
-                    logger.info(f"summarized_prev_posts_agg cnt => {len(summarized_prev_posts_agg)}")
-            else:
-                # 전일자 파일을 받지 못한 경우 로컬 파일은 방금 저장한 당일자 agg 이므로 읽으면 안 된다.
-                # (읽으면 당일 게시물 전체가 전일자 게시물로 취급되어 모두 [중복] 태그가 붙음)
+
+            # 전일자 누적 파일(시작할 때 받아 둔 것)의 url 로 [중복] 태그를 붙인다.
+            # 태그는 누적 파일 저장이 모두 끝난 뒤에 붙여야 누적 파일에 들어가지 않는다.
+            if prev_agg_ret != 0:
                 logger.warning(f"{base_ymd_prev}/summarized_posts_agg.json 이 없어 전일자 중복 체크를 건너뜁니다.")
-                
+
             summarized_union_posts_agg = summarized_prev_posts_agg # + summarized_old_posts_agg  # 우선 prev_post_agg 파일만 적용
             
             union_urls = {post.get('url') for post in summarized_union_posts_agg if post.get('url')}
