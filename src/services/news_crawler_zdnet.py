@@ -4,6 +4,7 @@ import logging
 import traceback
 import re
 import json
+import time
 import datetime as dt
 
 from typing import List, Dict
@@ -30,6 +31,13 @@ kst_timezone = pytz.timezone('Asia/Seoul')
 # 날짜 파싱 실패 시 반환하는 값. 충분히 오래된 날짜라 수집 기간 필터에서 제외된다.
 # (dt.datetime.min 은 kst_timezone.localize() 에서 OverflowError 를 일으켜 사용할 수 없음)
 PARSE_FAILED_DATETIME = dt.datetime(1970, 1, 1)
+
+# HTTP 요청 설정
+REQUEST_TIMEOUT_SEC = 10
+# 타임아웃·연결 오류 시 최대 시도 횟수 (첫 시도 포함)
+MAX_REQUEST_ATTEMPTS = 3
+# 재시도 대기 시간(초). 시도마다 2배씩 늘어난다 (2초, 4초, ...)
+RETRY_BACKOFF_SEC = 2
 
 class NewsCrawler_ZDNet:
     """
@@ -69,6 +77,27 @@ class NewsCrawler_ZDNet:
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
         }
+
+    def _get_with_retry(self, url: str) -> requests.Response:
+        """
+        GET 요청을 보내고, 타임아웃·연결 오류가 나면 잠시 기다렸다가 다시 시도합니다.
+        MAX_REQUEST_ATTEMPTS 번 모두 실패하면 마지막 예외를 그대로 던집니다.
+        HTTP 오류(4xx/5xx)는 재시도하지 않고 raise_for_status() 의 HTTPError 를 던집니다.
+        """
+        for attempt in range(1, MAX_REQUEST_ATTEMPTS + 1):
+            try:
+                response = requests.get(url, headers=self.headers, timeout=REQUEST_TIMEOUT_SEC)
+                response.raise_for_status()
+                return response
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                if attempt == MAX_REQUEST_ATTEMPTS:
+                    logger.error(f"Request failed after {attempt} attempts for {url}: {e}")
+                    raise
+                delay = RETRY_BACKOFF_SEC * (2 ** (attempt - 1))
+                logger.warning(f"Request attempt {attempt}/{MAX_REQUEST_ATTEMPTS} failed for {url}: {e}. "
+                               f"Retrying in {delay}s...")
+                time.sleep(delay)
+                self._update_headers()  # 다른 User-Agent 로 재시도
 
     def _parse_date(self, datetime_str: str) -> dt.datetime:
         """
@@ -112,8 +141,12 @@ class NewsCrawler_ZDNet:
         
         logger.info(f"Fetching articles from {self.base_url} published from {str_start_date} to {str_end_date}")
 
-        response = requests.get(self.base_url, headers=self.headers, timeout=10)
-        response.raise_for_status()  # HTTP 오류가 발생하면 예외 발생
+        try:
+            response = self._get_with_retry(self.base_url)
+        except requests.exceptions.RequestException as e:
+            # 재시도 후에도 목록 페이지를 못 가져오면 배치를 종료하지 않고 이 섹션을 건너뛴다.
+            logger.error(f"Skipping {self.base_url}: failed to fetch article list ({e})")
+            return news_list
         soup = BeautifulSoup(response.text, 'html.parser')
 
         # ZDNet 뉴스 목록 컨테이너 (예시 CSS 선택자, 실제 웹사이트 검사 필요)
@@ -204,8 +237,7 @@ class NewsCrawler_ZDNet:
         """
         logger.info(f"Fetching content for article: {article_url}")
         try:
-            response = requests.get(article_url, headers=self.headers, timeout=10)
-            response.raise_for_status()
+            response = self._get_with_retry(article_url)
         except requests.exceptions.Timeout:
             logger.warning(f"Timeout occurred while fetching content for {article_url}")
             return "타임아웃으로 기사 내용을 찾을 수 없습니다."
